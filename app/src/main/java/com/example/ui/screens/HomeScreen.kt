@@ -55,6 +55,33 @@ fun HomeScreen(
     var showCreateFolderDialog by remember { mutableStateOf(false) }
     var documentToMove by remember { mutableStateOf<DocumentEntity?>(null) }
     var folderToRename by remember { mutableStateOf<com.example.data.FolderEntity?>(null) }
+    var documentToRename by remember { mutableStateOf<DocumentEntity?>(null) }
+
+    if (documentToRename != null) {
+        var newDocumentName by remember { mutableStateOf(documentToRename!!.name) }
+        AlertDialog(
+            onDismissRequest = { documentToRename = null },
+            title = { Text("Rename Document") },
+            text = {
+                OutlinedTextField(
+                    value = newDocumentName,
+                    onValueChange = { newDocumentName = it },
+                    label = { Text("New Document Name") }
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    if (newDocumentName.isNotBlank()) {
+                        viewModel.updateDocument(documentToRename!!.copy(name = newDocumentName))
+                        documentToRename = null
+                    }
+                }) { Text("Rename") }
+            },
+            dismissButton = {
+                TextButton(onClick = { documentToRename = null }) { Text("Cancel") }
+            }
+        )
+    }
 
     if (showCreateFolderDialog) {
         var folderName by remember { mutableStateOf("") }
@@ -337,7 +364,21 @@ fun HomeScreen(
                                 document = doc,
                                 onClick = { onNavigateToDetail(doc.id) },
                                 onDeleteClick = { viewModel.moveToTrash(doc.id) },
-                                onMoveClick = { documentToMove = doc }
+                                onMoveClick = { documentToMove = doc },
+                                onRenameClick = { documentToRename = doc },
+                                onShareClick = {
+                                    val file = doc.pdfPath?.let { java.io.File(it) } 
+                                        ?: doc.imagePaths.split(",").firstOrNull()?.let { java.io.File(it) }
+                                    if (file != null && file.exists()) {
+                                        val uri = androidx.core.content.FileProvider.getUriForFile(context, "${context.packageName}.provider", file)
+                                        val shareIntent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                                            type = if (doc.pdfPath != null) "application/pdf" else "image/jpeg"
+                                            putExtra(android.content.Intent.EXTRA_STREAM, uri)
+                                            addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                        }
+                                        context.startActivity(android.content.Intent.createChooser(shareIntent, "Share Document"))
+                                    }
+                                }
                             )
                         }
                         item {
@@ -435,7 +476,9 @@ fun DocumentListItem(
     document: DocumentEntity,
     onClick: () -> Unit,
     onDeleteClick: () -> Unit,
-    onMoveClick: () -> Unit
+    onMoveClick: () -> Unit,
+    onRenameClick: () -> Unit,
+    onShareClick: () -> Unit
 ) {
     val firstImagePath = document.imagePaths.split(",").firstOrNull()
     var showMenu by remember { mutableStateOf(false) }
@@ -512,12 +555,36 @@ fun DocumentListItem(
                 onDismissRequest = { showMenu = false }
             ) {
                 DropdownMenuItem(
+                    text = { Text("Edit") },
+                    onClick = {
+                        showMenu = false
+                        onClick()
+                    },
+                    leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null) }
+                )
+                DropdownMenuItem(
+                    text = { Text("Rename") },
+                    onClick = {
+                        showMenu = false
+                        onRenameClick()
+                    },
+                    leadingIcon = { Icon(Icons.Default.TextFields, contentDescription = null) }
+                )
+                DropdownMenuItem(
+                    text = { Text("Share") },
+                    onClick = {
+                        showMenu = false
+                        onShareClick()
+                    },
+                    leadingIcon = { Icon(Icons.Default.Share, contentDescription = null) }
+                )
+                DropdownMenuItem(
                     text = { Text("Move to Folder") },
                     onClick = {
                         showMenu = false
                         onMoveClick()
                     },
-                    leadingIcon = { Icon(Icons.Default.DriveFileMove, contentDescription = null) }
+                    leadingIcon = { Icon(Icons.AutoMirrored.Filled.DriveFileMove, contentDescription = null) }
                 )
                 DropdownMenuItem(
                     text = { Text("Delete") },

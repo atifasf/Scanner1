@@ -29,18 +29,34 @@ import com.example.ui.screens.SettingsScreen
 
 import android.content.Context
 
+import androidx.compose.ui.platform.LocalContext
+import android.content.SharedPreferences
+
 class MainActivity : FragmentActivity() {
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
     enableEdgeToEdge()
     
     setContent {
-      MyApplicationTheme {
+            val context = LocalContext.current
+            val sharedPrefs = remember<SharedPreferences> { context.getSharedPreferences("settings", Context.MODE_PRIVATE) }
+            var isDarkTheme by remember { mutableStateOf(sharedPrefs.getBoolean("dark_theme", false)) }
+            
+            androidx.compose.runtime.DisposableEffect(sharedPrefs) {
+                val listener = SharedPreferences.OnSharedPreferenceChangeListener { prefs, key ->
+                    if (key == "dark_theme") {
+                        isDarkTheme = prefs.getBoolean("dark_theme", false)
+                    }
+                }
+                sharedPrefs.registerOnSharedPreferenceChangeListener(listener)
+                onDispose { sharedPrefs.unregisterOnSharedPreferenceChangeListener(listener) }
+            }
+
+      MyApplicationTheme(darkTheme = isDarkTheme) {
         Surface(
             modifier = Modifier.fillMaxSize(),
             color = MaterialTheme.colorScheme.background
         ) {
-            val sharedPrefs = getSharedPreferences("settings", Context.MODE_PRIVATE)
             val isBiometricEnabled = sharedPrefs.getBoolean("biometric_enabled", true)
             var isAuthenticated by remember { mutableStateOf(!isBiometricEnabled) }
             val navController = rememberNavController()

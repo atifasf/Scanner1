@@ -117,6 +117,7 @@ dependencies {
   implementation(libs.okhttp)
   implementation(libs.apache.poi)
   implementation(libs.apache.poi.ooxml)
+  implementation(libs.pdfbox.android)
   // implementation(libs.play.services.location)
   // implementation(libs.retrofit)
   testImplementation(libs.androidx.compose.ui.test.junit4)

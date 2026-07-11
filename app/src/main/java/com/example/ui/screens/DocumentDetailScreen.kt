@@ -114,8 +114,8 @@ fun DocumentDetailScreen(
                 Spacer(modifier = Modifier.height(16.dp))
 
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceEvenly
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally)
                 ) {
                     Button(
                         onClick = {
@@ -143,6 +143,47 @@ fun DocumentDetailScreen(
                             Icon(Icons.Default.TextFields, contentDescription = null)
                             Spacer(modifier = Modifier.width(8.dp))
                             Text("Extract Text")
+                        }
+                    }
+
+                    if (document!!.pdfPath != null) {
+                        var showEncryptDialog by remember { mutableStateOf(false) }
+                        Button(onClick = { showEncryptDialog = true }) {
+                            Icon(Icons.Default.Lock, contentDescription = null)
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Encrypt PDF")
+                        }
+                        
+                        if (showEncryptDialog) {
+                            var password by remember { mutableStateOf("") }
+                            AlertDialog(
+                                onDismissRequest = { showEncryptDialog = false },
+                                title = { Text("Encrypt PDF") },
+                                text = {
+                                    OutlinedTextField(
+                                        value = password,
+                                        onValueChange = { password = it },
+                                        label = { Text("Password") },
+                                        singleLine = true
+                                    )
+                                },
+                                confirmButton = {
+                                    TextButton(onClick = {
+                                        if (password.isNotEmpty()) {
+                                            val success = com.example.ui.PdfHelper.encryptPdf(context, document!!.pdfPath!!, password)
+                                            if (success) {
+                                                Toast.makeText(context, "PDF encrypted successfully", Toast.LENGTH_SHORT).show()
+                                            } else {
+                                                Toast.makeText(context, "Failed to encrypt PDF", Toast.LENGTH_SHORT).show()
+                                            }
+                                            showEncryptDialog = false
+                                        }
+                                    }) { Text("Encrypt") }
+                                },
+                                dismissButton = {
+                                    TextButton(onClick = { showEncryptDialog = false }) { Text("Cancel") }
+                                }
+                            )
                         }
                     }
                 }
@@ -212,11 +253,7 @@ fun DocumentDetailScreen(
                                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                     OutlinedButton(onClick = {
                                         ExportHelper.exportToExcel(context, extractedText, docName)
-                                    }, modifier = Modifier.weight(1f)) { Text("Export Excel") }
-                                    
-                                    OutlinedButton(onClick = {
-                                        ExportHelper.exportToPowerPoint(context, extractedText, docName)
-                                    }, modifier = Modifier.weight(1f)) { Text("Export PPT") }
+                                    }, modifier = Modifier.fillMaxWidth()) { Text("Export Excel") }
                                 }
                             }
                         }
