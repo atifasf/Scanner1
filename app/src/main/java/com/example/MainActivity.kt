@@ -27,6 +27,8 @@ import androidx.compose.ui.Alignment
 
 import com.example.ui.screens.SettingsScreen
 
+import android.content.Context
+
 class MainActivity : FragmentActivity() {
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
@@ -38,7 +40,9 @@ class MainActivity : FragmentActivity() {
             modifier = Modifier.fillMaxSize(),
             color = MaterialTheme.colorScheme.background
         ) {
-            var isAuthenticated by remember { mutableStateOf(false) }
+            val sharedPrefs = getSharedPreferences("settings", Context.MODE_PRIVATE)
+            val isBiometricEnabled = sharedPrefs.getBoolean("biometric_enabled", true)
+            var isAuthenticated by remember { mutableStateOf(!isBiometricEnabled) }
             val navController = rememberNavController()
             val viewModel: DocumentViewModel = viewModel()
 

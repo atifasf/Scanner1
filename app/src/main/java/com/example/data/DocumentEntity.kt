@@ -13,5 +13,6 @@ data class DocumentEntity(
     val ocrText: String?,
     val isFavorite: Boolean = false,
     val isTrash: Boolean = false,
-    val sizeBytes: Long = 0L
+    val sizeBytes: Long = 0L,
+    val folderId: String? = null
 )

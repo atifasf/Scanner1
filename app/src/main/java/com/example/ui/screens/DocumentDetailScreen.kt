@@ -22,6 +22,14 @@ import com.example.ui.OCRHelper
 import kotlinx.coroutines.launch
 import java.io.File
 
+import android.content.ClipboardManager
+import android.content.ClipData
+import android.content.Context
+import android.widget.Toast
+import com.example.ui.ExportHelper
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DocumentDetailScreen(
@@ -148,7 +156,69 @@ fun DocumentDetailScreen(
                         Column(modifier = Modifier.padding(16.dp)) {
                             Text("Extracted Text", style = MaterialTheme.typography.titleMedium)
                             Spacer(modifier = Modifier.height(8.dp))
-                            Text(document!!.ocrText!!)
+                            
+                            var editableText by remember(document!!.ocrText) { mutableStateOf(document!!.ocrText!!) }
+                            
+                            OutlinedTextField(
+                                value = editableText,
+                                onValueChange = { editableText = it },
+                                modifier = Modifier.fillMaxWidth().heightIn(min = 100.dp, max = 300.dp)
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            
+                            if (editableText != document!!.ocrText) {
+                                Button(onClick = {
+                                    val updatedDoc = document!!.copy(ocrText = editableText)
+                                    viewModel.updateDocument(updatedDoc)
+                                    document = updatedDoc
+                                }, modifier = Modifier.align(Alignment.End)) {
+                                    Text("Save Edits")
+                                }
+                            }
+                            
+                            Spacer(modifier = Modifier.height(16.dp))
+                            
+                            val extractedText = editableText
+                            val docName = document!!.name
+                            
+                            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    OutlinedButton(onClick = {
+                                        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                                        val clip = ClipData.newPlainText("Copied Text", extractedText)
+                                        clipboard.setPrimaryClip(clip)
+                                        Toast.makeText(context, "Text copied successfully.", Toast.LENGTH_SHORT).show()
+                                    }, modifier = Modifier.weight(1f)) { Text("Copy Text") }
+                                    
+                                    OutlinedButton(onClick = {
+                                        val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                                            type = "text/plain"
+                                            putExtra(Intent.EXTRA_TEXT, extractedText)
+                                        }
+                                        context.startActivity(Intent.createChooser(shareIntent, "Share Text"))
+                                    }, modifier = Modifier.weight(1f)) { Text("Share") }
+                                }
+                                
+                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    OutlinedButton(onClick = {
+                                        ExportHelper.exportToTxt(context, extractedText, docName)
+                                    }, modifier = Modifier.weight(1f)) { Text("Save TXT") }
+                                    
+                                    OutlinedButton(onClick = {
+                                        ExportHelper.exportToWord(context, extractedText, docName)
+                                    }, modifier = Modifier.weight(1f)) { Text("Export Word") }
+                                }
+                                
+                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    OutlinedButton(onClick = {
+                                        ExportHelper.exportToExcel(context, extractedText, docName)
+                                    }, modifier = Modifier.weight(1f)) { Text("Export Excel") }
+                                    
+                                    OutlinedButton(onClick = {
+                                        ExportHelper.exportToPowerPoint(context, extractedText, docName)
+                                    }, modifier = Modifier.weight(1f)) { Text("Export PPT") }
+                                }
+                            }
                         }
                     }
                 }

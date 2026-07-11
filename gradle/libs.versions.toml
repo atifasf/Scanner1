@@ -47,7 +47,12 @@ mlkitDocumentScanner = "16.0.0-beta1"
 mlkitTextRecognition = "19.0.0"
 biometric = "1.2.0-alpha05"
 
+poi = "5.2.3"
+poiOoxml = "5.2.3"
+
 [libraries]
+apache-poi = { group = "org.apache.poi", name = "poi", version.ref = "poi" }
+apache-poi-ooxml = { group = "org.apache.poi", name = "poi-ooxml", version.ref = "poiOoxml" }
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
 junit = { group = "junit", name = "junit", version.ref = "junit" }
 androidx-junit = { group = "androidx.test.ext", name = "junit", version.ref = "junitVersion" }

@@ -16,9 +16,11 @@ import kotlinx.coroutines.launch
 import java.io.File
 import java.util.UUID
 
+import com.example.data.FolderEntity
+import com.example.data.FolderDao
+
 class DocumentViewModel(application: Application) : AndroidViewModel(application) {
     private val repository: DocumentRepository
-    private val context = application.applicationContext
 
     private val _searchQuery = MutableStateFlow("")
     val searchQuery: StateFlow<String> = _searchQuery
@@ -26,10 +28,11 @@ class DocumentViewModel(application: Application) : AndroidViewModel(application
     val allDocuments: StateFlow<List<DocumentEntity>>
     val favoriteDocuments: StateFlow<List<DocumentEntity>>
     val trashDocuments: StateFlow<List<DocumentEntity>>
+    val allFolders: StateFlow<List<FolderEntity>>
 
     init {
-        val documentDao = AppDatabase.getDatabase(application).documentDao()
-        repository = DocumentRepository(documentDao)
+        val db = AppDatabase.getDatabase(application)
+        repository = DocumentRepository(db.documentDao(), db.folderDao())
 
         allDocuments = repository.allDocuments.combine(_searchQuery) { docs, query ->
             if (query.isBlank()) docs else docs.filter { it.name.contains(query, ignoreCase = true) }
@@ -42,6 +45,8 @@ class DocumentViewModel(application: Application) : AndroidViewModel(application
         trashDocuments = repository.trashDocuments.combine(_searchQuery) { docs, query ->
             if (query.isBlank()) docs else docs.filter { it.name.contains(query, ignoreCase = true) }
         }.stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
+        
+        allFolders = repository.allFolders.stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
     }
 
     fun setSearchQuery(query: String) {
@@ -52,15 +57,16 @@ class DocumentViewModel(application: Application) : AndroidViewModel(application
         return repository.getDocumentById(id)
     }
 
-    fun saveScannedDocument(imageUris: List<Uri>, pdfUri: Uri?) {
+    fun saveScannedDocument(imageUris: List<Uri>, pdfUri: Uri?, folderId: String? = null) {
         viewModelScope.launch {
+            val app = getApplication<Application>()
             val id = UUID.randomUUID().toString()
             val savedImages = mutableListOf<String>()
             
             // Copy images to internal storage
             imageUris.forEachIndexed { index, uri ->
-                val file = File(context.filesDir, "img_${id}_$index.jpg")
-                context.contentResolver.openInputStream(uri)?.use { input ->
+                val file = File(app.filesDir, "img_${id}_$index.jpg")
+                app.contentResolver.openInputStream(uri)?.use { input ->
                     file.outputStream().use { output ->
                         input.copyTo(output)
                     }
@@ -70,8 +76,8 @@ class DocumentViewModel(application: Application) : AndroidViewModel(application
 
             var savedPdfPath: String? = null
             if (pdfUri != null) {
-                val file = File(context.filesDir, "pdf_$id.pdf")
-                context.contentResolver.openInputStream(pdfUri)?.use { input ->
+                val file = File(app.filesDir, "pdf_$id.pdf")
+                app.contentResolver.openInputStream(pdfUri)?.use { input ->
                     file.outputStream().use { output ->
                         input.copyTo(output)
                     }
@@ -86,7 +92,8 @@ class DocumentViewModel(application: Application) : AndroidViewModel(application
                 imagePaths = savedImages.joinToString(","),
                 pdfPath = savedPdfPath,
                 ocrText = null,
-                sizeBytes = savedImages.sumOf { File(it).length() } + (savedPdfPath?.let { File(it).length() } ?: 0L)
+                sizeBytes = savedImages.sumOf { File(it).length() } + (savedPdfPath?.let { File(it).length() } ?: 0L),
+                folderId = folderId
             )
             repository.insertDocument(doc)
         }
@@ -127,6 +134,33 @@ class DocumentViewModel(application: Application) : AndroidViewModel(application
             doc.pdfPath?.let { File(it).delete() }
             
             repository.deleteDocument(doc)
+        }
+    }
+
+    fun createFolder(name: String) {
+        viewModelScope.launch {
+            repository.insertFolder(FolderEntity(name = name))
+        }
+    }
+
+    fun updateFolder(folder: FolderEntity) {
+        viewModelScope.launch {
+            repository.updateFolder(folder)
+        }
+    }
+
+    fun deleteFolder(folder: FolderEntity) {
+        viewModelScope.launch {
+            repository.deleteFolder(folder)
+        }
+    }
+
+    fun moveDocumentToFolder(documentId: String, folderId: String?) {
+        viewModelScope.launch {
+            val doc = repository.getDocumentById(documentId)
+            if (doc != null) {
+                repository.updateDocument(doc.copy(folderId = folderId))
+            }
         }
     }
 }
