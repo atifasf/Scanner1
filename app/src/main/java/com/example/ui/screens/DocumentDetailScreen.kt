@@ -38,9 +38,11 @@ fun DocumentDetailScreen(
     onNavigateBack: () -> Unit
 ) {
     val context = LocalContext.current
+    val sharedPrefs = remember { context.getSharedPreferences("settings", Context.MODE_PRIVATE) }
     val coroutineScope = rememberCoroutineScope()
     var document by remember { mutableStateOf<DocumentEntity?>(null) }
     var isOcrLoading by remember { mutableStateOf(false) }
+    var isTableScanLoading by remember { mutableStateOf(false) }
 
     LaunchedEffect(documentId) {
         document = viewModel.getDocumentById(documentId)
@@ -122,7 +124,8 @@ fun DocumentDetailScreen(
                             if (imagePaths.isNotEmpty()) {
                                 isOcrLoading = true
                                 val uri = android.net.Uri.fromFile(File(imagePaths.first()))
-                                OCRHelper.extractText(context, uri,
+                                val lang = sharedPrefs.getString("ocr_language", "en") ?: "en"
+                                OCRHelper.extractText(context, uri, languageCode = lang,
                                     onSuccess = { text ->
                                         isOcrLoading = false
                                         val updatedDoc = document!!.copy(ocrText = text)
@@ -135,7 +138,8 @@ fun DocumentDetailScreen(
                                 )
                             }
                         },
-                        enabled = !isOcrLoading
+                        enabled = !isOcrLoading && !isTableScanLoading,
+                        modifier = Modifier.weight(1f)
                     ) {
                         if (isOcrLoading) {
                             CircularProgressIndicator(modifier = Modifier.size(24.dp))
@@ -143,6 +147,38 @@ fun DocumentDetailScreen(
                             Icon(Icons.Default.TextFields, contentDescription = null)
                             Spacer(modifier = Modifier.width(8.dp))
                             Text("Extract Text")
+                        }
+                    }
+
+                    Button(
+                        onClick = {
+                            if (imagePaths.isNotEmpty()) {
+                                isTableScanLoading = true
+                                val uri = android.net.Uri.fromFile(File(imagePaths.first()))
+                                OCRHelper.extractTableAsCsv(context, uri,
+                                    onSuccess = { csvText ->
+                                        isTableScanLoading = false
+                                        val updatedDoc = document!!.copy(ocrText = csvText)
+                                        viewModel.updateDocument(updatedDoc)
+                                        document = updatedDoc
+                                        Toast.makeText(context, "Table extracted!", Toast.LENGTH_SHORT).show()
+                                    },
+                                    onError = {
+                                        isTableScanLoading = false
+                                        Toast.makeText(context, "Table scan failed", Toast.LENGTH_SHORT).show()
+                                    }
+                                )
+                            }
+                        },
+                        enabled = !isOcrLoading && !isTableScanLoading,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        if (isTableScanLoading) {
+                            CircularProgressIndicator(modifier = Modifier.size(24.dp))
+                        } else {
+                            Icon(Icons.Default.GridOn, contentDescription = null)
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Scan Table")
                         }
                     }
 

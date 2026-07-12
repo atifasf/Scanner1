@@ -64,7 +64,7 @@ object ExportHelper {
             val lines = text.split("\n")
             lines.forEachIndexed { rowIndex, line ->
                 val row = sheet.createRow(rowIndex)
-                val cols = line.split("\t", "   ", " | ")
+                val cols = line.split("\t", "   ", " | ", "|")
                 cols.forEachIndexed { colIndex, cellValue ->
                     val cell = row.createCell(colIndex)
                     cell.setCellValue(cellValue.trim())

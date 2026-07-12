@@ -26,6 +26,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.ui.Alignment
 
 import com.example.ui.screens.SettingsScreen
+import com.example.ui.screens.AdminPanelScreen
 
 import android.content.Context
 
@@ -96,6 +97,13 @@ class MainActivity : FragmentActivity() {
                     }
                     composable("settings") {
                         SettingsScreen(
+                            onNavigateBack = { navController.popBackStack() },
+                            onNavigateToAdmin = { navController.navigate("admin") }
+                        )
+                    }
+                    composable("admin") {
+                        AdminPanelScreen(
+                            viewModel = viewModel,
                             onNavigateBack = { navController.popBackStack() }
                         )
                     }

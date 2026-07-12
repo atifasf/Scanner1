@@ -1,5 +1,6 @@
 package com.example.ui.screens
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -16,7 +17,8 @@ import androidx.compose.foundation.verticalScroll
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(
-    onNavigateBack: () -> Unit
+    onNavigateBack: () -> Unit,
+    onNavigateToAdmin: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val sharedPrefs = remember { context.getSharedPreferences("settings", Context.MODE_PRIVATE) }
@@ -24,6 +26,8 @@ fun SettingsScreen(
     var isBiometricEnabled by remember { mutableStateOf(sharedPrefs.getBoolean("biometric_enabled", true)) }
     var isDarkTheme by remember { mutableStateOf(sharedPrefs.getBoolean("dark_theme", false)) }
     var autoOcr by remember { mutableStateOf(sharedPrefs.getBoolean("auto_ocr", false)) }
+    var ocrLanguage by remember { mutableStateOf(sharedPrefs.getString("ocr_language", "en") ?: "en") }
+    var showLanguageDialog by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
@@ -78,8 +82,66 @@ fun SettingsScreen(
                     })
                 }
             )
-            ListItem(headlineContent = { Text("OCR Language") }, supportingContent = { Text("English") })
+            ListItem(
+                headlineContent = { Text("OCR Language") },
+                supportingContent = { Text(if (ocrLanguage == "ur") "Urdu (اردو)" else "English") },
+                modifier = Modifier.clickable { showLanguageDialog = true }
+            )
             HorizontalDivider()
+
+            if (showLanguageDialog) {
+                AlertDialog(
+                    onDismissRequest = { showLanguageDialog = false },
+                    title = { Text("Select OCR Language") },
+                    text = {
+                        Column {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        ocrLanguage = "en"
+                                        sharedPrefs.edit().putString("ocr_language", "en").apply()
+                                        showLanguageDialog = false
+                                    }
+                                    .padding(vertical = 12.dp, horizontal = 16.dp),
+                                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+                            ) {
+                                RadioButton(selected = ocrLanguage == "en", onClick = {
+                                    ocrLanguage = "en"
+                                    sharedPrefs.edit().putString("ocr_language", "en").apply()
+                                    showLanguageDialog = false
+                                })
+                                Spacer(modifier = Modifier.width(16.dp))
+                                Text("English")
+                            }
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        ocrLanguage = "ur"
+                                        sharedPrefs.edit().putString("ocr_language", "ur").apply()
+                                        showLanguageDialog = false
+                                    }
+                                    .padding(vertical = 12.dp, horizontal = 16.dp),
+                                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+                            ) {
+                                RadioButton(selected = ocrLanguage == "ur", onClick = {
+                                    ocrLanguage = "ur"
+                                    sharedPrefs.edit().putString("ocr_language", "ur").apply()
+                                    showLanguageDialog = false
+                                })
+                                Spacer(modifier = Modifier.width(16.dp))
+                                Text("Urdu (اردو)")
+                            }
+                        }
+                    },
+                    confirmButton = {
+                        TextButton(onClick = { showLanguageDialog = false }) {
+                            Text("Cancel")
+                        }
+                    }
+                )
+            }
 
             Text("Scanner Settings", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(16.dp, 8.dp))
             ListItem(headlineContent = { Text("Scan Quality") }, supportingContent = { Text("High") })
