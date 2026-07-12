@@ -63,13 +63,28 @@ class DocumentViewModel(application: Application) : AndroidViewModel(application
             val id = UUID.randomUUID().toString()
             val savedImages = mutableListOf<String>()
             
-            // Copy images to internal storage
+            // Copy images to internal storage and enhance them
             imageUris.forEachIndexed { index, uri ->
                 val file = File(app.filesDir, "img_${id}_$index.jpg")
-                app.contentResolver.openInputStream(uri)?.use { input ->
-                    file.outputStream().use { output ->
-                        input.copyTo(output)
+                try {
+                    val originalBitmap = android.graphics.BitmapFactory.decodeStream(app.contentResolver.openInputStream(uri))
+                    if (originalBitmap != null) {
+                        val enhancedBitmap = com.example.ui.ImageEnhancer.enhanceBitmap(originalBitmap)
+                        file.outputStream().use { output ->
+                            enhancedBitmap.compress(android.graphics.Bitmap.CompressFormat.JPEG, 95, output)
+                        }
+                        originalBitmap.recycle()
+                        enhancedBitmap.recycle()
+                    } else {
+                        // Fallback to copy if decode fails
+                        app.contentResolver.openInputStream(uri)?.use { input ->
+                            file.outputStream().use { output ->
+                                input.copyTo(output)
+                            }
+                        }
                     }
+                } catch (e: Exception) {
+                    e.printStackTrace()
                 }
                 savedImages.add(file.absolutePath)
             }

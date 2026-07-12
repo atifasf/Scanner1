@@ -181,47 +181,6 @@ fun DocumentDetailScreen(
                             Text("Scan Table")
                         }
                     }
-
-                    if (document!!.pdfPath != null) {
-                        var showEncryptDialog by remember { mutableStateOf(false) }
-                        Button(onClick = { showEncryptDialog = true }) {
-                            Icon(Icons.Default.Lock, contentDescription = null)
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text("Encrypt PDF")
-                        }
-                        
-                        if (showEncryptDialog) {
-                            var password by remember { mutableStateOf("") }
-                            AlertDialog(
-                                onDismissRequest = { showEncryptDialog = false },
-                                title = { Text("Encrypt PDF") },
-                                text = {
-                                    OutlinedTextField(
-                                        value = password,
-                                        onValueChange = { password = it },
-                                        label = { Text("Password") },
-                                        singleLine = true
-                                    )
-                                },
-                                confirmButton = {
-                                    TextButton(onClick = {
-                                        if (password.isNotEmpty()) {
-                                            val success = com.example.ui.PdfHelper.encryptPdf(context, document!!.pdfPath!!, password)
-                                            if (success) {
-                                                Toast.makeText(context, "PDF encrypted successfully", Toast.LENGTH_SHORT).show()
-                                            } else {
-                                                Toast.makeText(context, "Failed to encrypt PDF", Toast.LENGTH_SHORT).show()
-                                            }
-                                            showEncryptDialog = false
-                                        }
-                                    }) { Text("Encrypt") }
-                                },
-                                dismissButton = {
-                                    TextButton(onClick = { showEncryptDialog = false }) { Text("Cancel") }
-                                }
-                            )
-                        }
-                    }
                 }
 
                 if (!document!!.ocrText.isNullOrEmpty()) {

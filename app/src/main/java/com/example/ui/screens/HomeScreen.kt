@@ -56,6 +56,40 @@ fun HomeScreen(
     var documentToMove by remember { mutableStateOf<DocumentEntity?>(null) }
     var folderToRename by remember { mutableStateOf<com.example.data.FolderEntity?>(null) }
     var documentToRename by remember { mutableStateOf<DocumentEntity?>(null) }
+    var documentToEncrypt by remember { mutableStateOf<DocumentEntity?>(null) }
+    var currentTab by remember { mutableStateOf("Home") }
+
+    if (documentToEncrypt != null) {
+        var password by remember { mutableStateOf("") }
+        AlertDialog(
+            onDismissRequest = { documentToEncrypt = null },
+            title = { Text("Encrypt PDF") },
+            text = {
+                OutlinedTextField(
+                    value = password,
+                    onValueChange = { password = it },
+                    label = { Text("Password") },
+                    singleLine = true
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    if (password.isNotEmpty()) {
+                        val success = com.example.ui.PdfHelper.encryptPdf(context, documentToEncrypt!!.pdfPath!!, password)
+                        if (success) {
+                            android.widget.Toast.makeText(context, "PDF encrypted successfully", android.widget.Toast.LENGTH_SHORT).show()
+                        } else {
+                            android.widget.Toast.makeText(context, "Failed to encrypt PDF", android.widget.Toast.LENGTH_SHORT).show()
+                        }
+                        documentToEncrypt = null
+                    }
+                }) { Text("Encrypt") }
+            },
+            dismissButton = {
+                TextButton(onClick = { documentToEncrypt = null }) { Text("Cancel") }
+            }
+        )
+    }
 
     if (documentToRename != null) {
         var newDocumentName by remember { mutableStateOf(documentToRename!!.name) }
@@ -174,26 +208,30 @@ fun HomeScreen(
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         bottomBar = {
-            BottomNavigationBar(onNavigateToSettings = onNavigateToSettings)
+            BottomNavigationBar(currentTab = currentTab, onTabSelected = { currentTab = it }, onNavigateToSettings = onNavigateToSettings)
         },
         floatingActionButton = {
-            FloatingActionButton(
-                onClick = {
-                    val activity = generateSequence(context) { (it as? android.content.ContextWrapper)?.baseContext }.filterIsInstance<Activity>().firstOrNull()
-                    if (activity != null) {
-                        ScannerHelper.startScan(activity, scannerLauncher)
-                    }
-                },
-                containerColor = MaterialTheme.colorScheme.primary,
-                contentColor = Color.White,
-                shape = RoundedCornerShape(24.dp),
-                modifier = Modifier.size(64.dp)
-            ) {
-                Icon(Icons.Default.Add, contentDescription = "Scan", modifier = Modifier.size(32.dp))
+            if (currentTab == "Home") {
+                FloatingActionButton(
+                    onClick = {
+                        val activity = generateSequence(context) { (it as? android.content.ContextWrapper)?.baseContext }.filterIsInstance<Activity>().firstOrNull()
+                        if (activity != null) {
+                            ScannerHelper.startScan(activity, scannerLauncher)
+                        }
+                    },
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = Color.White,
+                    shape = RoundedCornerShape(24.dp),
+                    modifier = Modifier.size(64.dp)
+                ) {
+                    Icon(Icons.Default.Add, contentDescription = "Scan", modifier = Modifier.size(32.dp))
+                }
             }
         }
     ) { padding ->
-        Column(modifier = Modifier.padding(padding).fillMaxSize()) {
+        when (currentTab) {
+            "Home" -> {
+                Column(modifier = Modifier.padding(padding).fillMaxSize()) {
             // Header
             Row(
                 modifier = Modifier
@@ -366,6 +404,7 @@ fun HomeScreen(
                                 onDeleteClick = { viewModel.moveToTrash(doc.id) },
                                 onMoveClick = { documentToMove = doc },
                                 onRenameClick = { documentToRename = doc },
+                                onEncryptClick = { documentToEncrypt = doc },
                                 onShareClick = {
                                     val file = doc.pdfPath?.let { java.io.File(it) } 
                                         ?: doc.imagePaths.split(",").firstOrNull()?.let { java.io.File(it) }
@@ -387,7 +426,15 @@ fun HomeScreen(
                     }
                 }
             }
-        }
+            } // end of Column
+            } // end of "Home" -> {
+            "OCR" -> {
+                com.example.ui.screens.OcrTab(viewModel, padding)
+            }
+            "Tools" -> {
+                com.example.ui.screens.ToolsTab(viewModel, padding, context)
+            }
+        } // end of when
     }
 }
 
@@ -478,7 +525,8 @@ fun DocumentListItem(
     onDeleteClick: () -> Unit,
     onMoveClick: () -> Unit,
     onRenameClick: () -> Unit,
-    onShareClick: () -> Unit
+    onShareClick: () -> Unit,
+    onEncryptClick: () -> Unit = {}
 ) {
     val firstImagePath = document.imagePaths.split(",").firstOrNull()
     var showMenu by remember { mutableStateOf(false) }
@@ -570,6 +618,16 @@ fun DocumentListItem(
                     },
                     leadingIcon = { Icon(Icons.Default.TextFields, contentDescription = null) }
                 )
+                if (document.pdfPath != null) {
+                    DropdownMenuItem(
+                        text = { Text("Encrypt PDF") },
+                        onClick = {
+                            showMenu = false
+                            onEncryptClick()
+                        },
+                        leadingIcon = { Icon(Icons.Default.Lock, contentDescription = null) }
+                    )
+                }
                 DropdownMenuItem(
                     text = { Text("Share") },
                     onClick = {
@@ -600,7 +658,7 @@ fun DocumentListItem(
 }
 
 @Composable
-fun BottomNavigationBar(onNavigateToSettings: () -> Unit) {
+fun BottomNavigationBar(currentTab: String, onTabSelected: (String) -> Unit, onNavigateToSettings: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -611,9 +669,9 @@ fun BottomNavigationBar(onNavigateToSettings: () -> Unit) {
         horizontalArrangement = Arrangement.SpaceAround,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        BottomNavItem(icon = Icons.Default.Home, label = "Home", isSelected = true)
-        BottomNavItem(icon = Icons.Default.TextFields, label = "OCR", isSelected = false)
-        BottomNavItem(icon = Icons.Default.Build, label = "Tools", isSelected = false)
+        BottomNavItem(icon = Icons.Default.Home, label = "Home", isSelected = currentTab == "Home", onClick = { onTabSelected("Home") })
+        BottomNavItem(icon = Icons.Default.TextFields, label = "OCR", isSelected = currentTab == "OCR", onClick = { onTabSelected("OCR") })
+        BottomNavItem(icon = Icons.Default.Build, label = "Tools", isSelected = currentTab == "Tools", onClick = { onTabSelected("Tools") })
         BottomNavItem(
             icon = Icons.Default.Settings,
             label = "Settings",
