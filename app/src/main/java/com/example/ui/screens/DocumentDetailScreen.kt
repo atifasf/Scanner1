@@ -254,6 +254,9 @@ fun DocumentDetailScreen(
                         }
                     }
                 }
+                
+                Spacer(modifier = Modifier.weight(1f, fill = false))
+                com.example.ui.components.BannerAd()
             }
         }
     }

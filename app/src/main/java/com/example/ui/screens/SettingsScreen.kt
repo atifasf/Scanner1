@@ -177,6 +177,9 @@ fun SettingsScreen(
                 supportingContent = { Text("Version 1.0") },
                 modifier = Modifier.padding(vertical = 8.dp)
             )
+            
+            Spacer(modifier = Modifier.weight(1f, fill = false))
+            com.example.ui.components.BannerAd()
         }
     }
 }

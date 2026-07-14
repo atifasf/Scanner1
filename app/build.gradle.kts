@@ -14,11 +14,11 @@ android {
   compileSdk { version = release(36) { minorApiLevel = 1 } }
 
   defaultConfig {
-    applicationId = "com.aistudio.scanverse.scknvs"
+    applicationId = "com.scanverse.atifsam280"
     minSdk = 26
     targetSdk = 36
-    versionCode = 1
-    versionName = "1.0"
+    versionCode = 2
+    versionName = "1.1"
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
   }
@@ -117,6 +117,7 @@ dependencies {
   implementation(libs.okhttp)
   implementation(libs.apache.poi)
   implementation(libs.apache.poi.ooxml)
+  implementation(libs.play.services.ads)
   // implementation(libs.pdfbox.android)
   // implementation(libs.play.services.location)
   // implementation(libs.retrofit)

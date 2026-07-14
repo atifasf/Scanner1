@@ -31,10 +31,12 @@ import android.content.Context
 
 import androidx.compose.ui.platform.LocalContext
 import android.content.SharedPreferences
+import com.google.android.gms.ads.MobileAds
 
 class MainActivity : FragmentActivity() {
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
+    MobileAds.initialize(this) {}
     enableEdgeToEdge()
     
     setContent {

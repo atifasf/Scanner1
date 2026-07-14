@@ -1,4 +1,5 @@
 [versions]
+playServicesAds = "23.6.0"
 agp = "9.1.1"
 coreKtx = "1.18.0"
 junit = "4.13.2"
@@ -53,6 +54,7 @@ poiOoxml = "5.2.3"
 pdfbox = "2.0.27.0"
 
 [libraries]
+play-services-ads = { group = "com.google.android.gms", name = "play-services-ads", version.ref = "playServicesAds" }
 pdfbox-android = { group = "com.tom-roush", name = "pdfbox-android", version.ref = "pdfbox" }
 apache-poi = { group = "org.apache.poi", name = "poi", version.ref = "poi" }
 apache-poi-ooxml = { group = "org.apache.poi", name = "poi-ooxml", version.ref = "poiOoxml" }

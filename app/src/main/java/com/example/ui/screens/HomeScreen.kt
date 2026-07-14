@@ -175,7 +175,10 @@ fun HomeScreen(
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         bottomBar = {
-            BottomNavigationBar(currentTab = currentTab, onTabSelected = { currentTab = it }, onNavigateToSettings = onNavigateToSettings)
+            Column {
+                com.example.ui.components.BannerAd()
+                BottomNavigationBar(currentTab = currentTab, onTabSelected = { currentTab = it }, onNavigateToSettings = onNavigateToSettings)
+            }
         },
         floatingActionButton = {
             if (currentTab == "Home") {
