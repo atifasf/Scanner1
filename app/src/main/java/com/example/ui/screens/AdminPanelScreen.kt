@@ -23,13 +23,6 @@ import com.example.ui.DocumentViewModel
 import com.example.data.DocumentEntity
 import com.example.BuildConfig
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
-import okhttp3.MediaType.Companion.toMediaType
-import okhttp3.OkHttpClient
-import okhttp3.Request
-import okhttp3.RequestBody.Companion.toRequestBody
-import org.json.JSONObject
 import java.io.File
 import java.text.DecimalFormat
 import java.text.SimpleDateFormat
@@ -56,11 +49,6 @@ fun AdminPanelScreen(
     // Dialog States
     var selectedDocForInspector by remember { mutableStateOf<DocumentEntity?>(null) }
     var showResetConfirmation by remember { mutableStateOf(false) }
-    
-    // Gemini Test States
-    var isTestingGemini by remember { mutableStateOf(false) }
-    var geminiTestResult by remember { mutableStateOf<String?>(null) }
-    var geminiTestSuccess by remember { mutableStateOf<Boolean?>(null) }
 
     Scaffold(
         topBar = {
@@ -267,149 +255,6 @@ fun AdminPanelScreen(
                             .verticalScroll(rememberScrollState()),
                         verticalArrangement = Arrangement.spacedBy(16.dp)
                     ) {
-                        Text("Gemini AI API Configuration Status", style = MaterialTheme.typography.titleLarge)
-                        
-                        Card(
-                            modifier = Modifier.fillMaxWidth(),
-                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
-                        ) {
-                            Column(modifier = Modifier.padding(16.dp)) {
-                                val apiKeyExists = BuildConfig.GEMINI_API_KEY.isNotEmpty() && BuildConfig.GEMINI_API_KEY != "MY_GEMINI_API_KEY"
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Text("GEMINI_API_KEY Configured:", style = MaterialTheme.typography.bodyLarge)
-                                    if (apiKeyExists) {
-                                        AssistChip(
-                                            onClick = {},
-                                            label = { Text("SECURED") },
-                                            leadingIcon = { Icon(Icons.Default.Check, contentDescription = "Ready", tint = Color(0xFF4CAF50)) }
-                                        )
-                                    } else {
-                                        AssistChip(
-                                            onClick = {},
-                                            label = { Text("MISSING") },
-                                            leadingIcon = { Icon(Icons.Default.Close, contentDescription = "Missing", tint = MaterialTheme.colorScheme.error) }
-                                        )
-                                    }
-                                }
-
-                                if (apiKeyExists) {
-                                    Text(
-                                        text = "Model Provider: Gemini-3.5-flash (Multimodal OCR Target)",
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        color = MaterialTheme.colorScheme.outline,
-                                        modifier = Modifier.padding(vertical = 4.dp)
-                                    )
-                                    
-                                    Spacer(modifier = Modifier.height(8.dp))
-                                    Button(
-                                        onClick = {
-                                            isTestingGemini = true
-                                            geminiTestResult = "Connecting to API..."
-                                            geminiTestSuccess = null
-                                            coroutineScope.launch {
-                                                try {
-                                                    val client = OkHttpClient()
-                                                    val requestJson = JSONObject()
-                                                    val contentsArray = org.json.JSONArray()
-                                                    val contentObject = JSONObject()
-                                                    val partsArray = org.json.JSONArray()
-                                                    val textPart = JSONObject()
-                                                    textPart.put("text", "Say 'System is fully operational' and nothing else.")
-                                                    partsArray.put(textPart)
-                                                    contentObject.put("parts", partsArray)
-                                                    contentsArray.put(contentObject)
-                                                    requestJson.put("contents", contentsArray)
-
-                                                    val requestBody = requestJson.toString().toRequestBody("application/json".toMediaType())
-                                                    val request = Request.Builder()
-                                                        .url("https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${BuildConfig.GEMINI_API_KEY}")
-                                                        .post(requestBody)
-                                                        .build()
-
-                                                    withContext(Dispatchers.IO) {
-                                                        client.newCall(request).execute().use { response ->
-                                                            if (response.isSuccessful) {
-                                                                val resStr = response.body?.string() ?: ""
-                                                                val json = JSONObject(resStr)
-                                                                val outText = json.getJSONArray("candidates")
-                                                                    .getJSONObject(0)
-                                                                    .getJSONObject("content")
-                                                                    .getJSONArray("parts")
-                                                                    .getJSONObject(0)
-                                                                    .getString("text")
-                                                                
-                                                                withContext(Dispatchers.Main) {
-                                                                    geminiTestSuccess = true
-                                                                    geminiTestResult = "Response: ${outText.trim()}"
-                                                                    isTestingGemini = false
-                                                                }
-                                                            } else {
-                                                                withContext(Dispatchers.Main) {
-                                                                    geminiTestSuccess = false
-                                                                    geminiTestResult = "Error Code: ${response.code}\nRaw Message: ${response.message}"
-                                                                    isTestingGemini = false
-                                                                }
-                                                            }
-                                                        }
-                                                    }
-                                                } catch (e: Exception) {
-                                                    withContext(Dispatchers.Main) {
-                                                        geminiTestSuccess = false
-                                                        geminiTestResult = "Connection Failed: ${e.message}"
-                                                        isTestingGemini = false
-                                                    }
-                                                }
-                                            }
-                                        },
-                                        enabled = !isTestingGemini,
-                                        modifier = Modifier.fillMaxWidth()
-                                    ) {
-                                        if (isTestingGemini) {
-                                            CircularProgressIndicator(modifier = Modifier.size(20.dp), color = MaterialTheme.colorScheme.onPrimary, strokeWidth = 2.dp)
-                                            Spacer(modifier = Modifier.width(8.dp))
-                                            Text("Testing...")
-                                        } else {
-                                            Text("Test Gemini API Connectivity")
-                                        }
-                                    }
-                                } else {
-                                    Text(
-                                        text = "Please configure GEMINI_API_KEY in the Secrets Panel in AI Studio.",
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        color = MaterialTheme.colorScheme.error,
-                                        modifier = Modifier.padding(vertical = 4.dp)
-                                    )
-                                }
-
-                                geminiTestResult?.let { result ->
-                                    Spacer(modifier = Modifier.height(12.dp))
-                                    Box(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .clip(RoundedCornerShape(8.dp))
-                                            .background(
-                                                if (geminiTestSuccess == true) Color(0xFFE8F5E9)
-                                                else if (geminiTestSuccess == false) Color(0xFFFFEBEE)
-                                                else MaterialTheme.colorScheme.surface
-                                            )
-                                            .padding(12.dp)
-                                    ) {
-                                        Text(
-                                            text = result,
-                                            style = MaterialTheme.typography.bodyMedium,
-                                            color = if (geminiTestSuccess == true) Color(0xFF2E7D32)
-                                            else if (geminiTestSuccess == false) Color(0xFFC62828)
-                                            else MaterialTheme.colorScheme.onSurface
-                                        )
-                                    }
-                                }
-                            }
-                        }
-
                         Text("Developer & Maintenance Utilities", style = MaterialTheme.typography.titleLarge)
 
                         Card(

@@ -56,40 +56,7 @@ fun HomeScreen(
     var documentToMove by remember { mutableStateOf<DocumentEntity?>(null) }
     var folderToRename by remember { mutableStateOf<com.example.data.FolderEntity?>(null) }
     var documentToRename by remember { mutableStateOf<DocumentEntity?>(null) }
-    var documentToEncrypt by remember { mutableStateOf<DocumentEntity?>(null) }
     var currentTab by remember { mutableStateOf("Home") }
-
-    if (documentToEncrypt != null) {
-        var password by remember { mutableStateOf("") }
-        AlertDialog(
-            onDismissRequest = { documentToEncrypt = null },
-            title = { Text("Encrypt PDF") },
-            text = {
-                OutlinedTextField(
-                    value = password,
-                    onValueChange = { password = it },
-                    label = { Text("Password") },
-                    singleLine = true
-                )
-            },
-            confirmButton = {
-                TextButton(onClick = {
-                    if (password.isNotEmpty()) {
-                        val success = com.example.ui.PdfHelper.encryptPdf(context, documentToEncrypt!!.pdfPath!!, password)
-                        if (success) {
-                            android.widget.Toast.makeText(context, "PDF encrypted successfully", android.widget.Toast.LENGTH_SHORT).show()
-                        } else {
-                            android.widget.Toast.makeText(context, "Failed to encrypt PDF", android.widget.Toast.LENGTH_SHORT).show()
-                        }
-                        documentToEncrypt = null
-                    }
-                }) { Text("Encrypt") }
-            },
-            dismissButton = {
-                TextButton(onClick = { documentToEncrypt = null }) { Text("Cancel") }
-            }
-        )
-    }
 
     if (documentToRename != null) {
         var newDocumentName by remember { mutableStateOf(documentToRename!!.name) }
@@ -404,7 +371,6 @@ fun HomeScreen(
                                 onDeleteClick = { viewModel.moveToTrash(doc.id) },
                                 onMoveClick = { documentToMove = doc },
                                 onRenameClick = { documentToRename = doc },
-                                onEncryptClick = { documentToEncrypt = doc },
                                 onShareClick = {
                                     val file = doc.pdfPath?.let { java.io.File(it) } 
                                         ?: doc.imagePaths.split(",").firstOrNull()?.let { java.io.File(it) }
@@ -525,8 +491,7 @@ fun DocumentListItem(
     onDeleteClick: () -> Unit,
     onMoveClick: () -> Unit,
     onRenameClick: () -> Unit,
-    onShareClick: () -> Unit,
-    onEncryptClick: () -> Unit = {}
+    onShareClick: () -> Unit
 ) {
     val firstImagePath = document.imagePaths.split(",").firstOrNull()
     var showMenu by remember { mutableStateOf(false) }
@@ -618,16 +583,6 @@ fun DocumentListItem(
                     },
                     leadingIcon = { Icon(Icons.Default.TextFields, contentDescription = null) }
                 )
-                if (document.pdfPath != null) {
-                    DropdownMenuItem(
-                        text = { Text("Encrypt PDF") },
-                        onClick = {
-                            showMenu = false
-                            onEncryptClick()
-                        },
-                        leadingIcon = { Icon(Icons.Default.Lock, contentDescription = null) }
-                    )
-                }
                 DropdownMenuItem(
                     text = { Text("Share") },
                     onClick = {

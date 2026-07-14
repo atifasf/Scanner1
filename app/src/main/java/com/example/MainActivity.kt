@@ -13,7 +13,6 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.example.ui.DocumentViewModel
-import com.example.ui.SecurityHelper
 import com.example.ui.screens.DocumentDetailScreen
 import com.example.ui.screens.HomeScreen
 import com.example.ui.theme.MyApplicationTheme
@@ -58,55 +57,40 @@ class MainActivity : FragmentActivity() {
             modifier = Modifier.fillMaxSize(),
             color = MaterialTheme.colorScheme.background
         ) {
-            val isBiometricEnabled = sharedPrefs.getBoolean("biometric_enabled", true)
-            var isAuthenticated by remember { mutableStateOf(!isBiometricEnabled) }
             val navController = rememberNavController()
             val viewModel: DocumentViewModel = viewModel()
 
-            if (!isAuthenticated) {
-                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator()
-                }
-                androidx.compose.runtime.LaunchedEffect(Unit) {
-                    SecurityHelper.authenticate(
-                        activity = this@MainActivity,
-                        onSuccess = { isAuthenticated = true },
-                        onError = { /* Handle error gracefully or retry */ }
+            NavHost(navController = navController, startDestination = "home") {
+                composable("home") {
+                    HomeScreen(
+                        viewModel = viewModel,
+                        onNavigateToDetail = { id ->
+                            navController.navigate("detail/$id")
+                        },
+                        onNavigateToSettings = {
+                            navController.navigate("settings")
+                        }
                     )
                 }
-            } else {
-                NavHost(navController = navController, startDestination = "home") {
-                    composable("home") {
-                        HomeScreen(
-                            viewModel = viewModel,
-                            onNavigateToDetail = { id ->
-                                navController.navigate("detail/$id")
-                            },
-                            onNavigateToSettings = {
-                                navController.navigate("settings")
-                            }
-                        )
-                    }
-                    composable("detail/{documentId}") { backStackEntry ->
-                        val documentId = backStackEntry.arguments?.getString("documentId") ?: return@composable
-                        DocumentDetailScreen(
-                            documentId = documentId,
-                            viewModel = viewModel,
-                            onNavigateBack = { navController.popBackStack() }
-                        )
-                    }
-                    composable("settings") {
-                        SettingsScreen(
-                            onNavigateBack = { navController.popBackStack() },
-                            onNavigateToAdmin = { navController.navigate("admin") }
-                        )
-                    }
-                    composable("admin") {
-                        AdminPanelScreen(
-                            viewModel = viewModel,
-                            onNavigateBack = { navController.popBackStack() }
-                        )
-                    }
+                composable("detail/{documentId}") { backStackEntry ->
+                    val documentId = backStackEntry.arguments?.getString("documentId") ?: return@composable
+                    DocumentDetailScreen(
+                        documentId = documentId,
+                        viewModel = viewModel,
+                        onNavigateBack = { navController.popBackStack() }
+                    )
+                }
+                composable("settings") {
+                    SettingsScreen(
+                        onNavigateBack = { navController.popBackStack() },
+                        onNavigateToAdmin = { navController.navigate("admin") }
+                    )
+                }
+                composable("admin") {
+                    AdminPanelScreen(
+                        viewModel = viewModel,
+                        onNavigateBack = { navController.popBackStack() }
+                    )
                 }
             }
         }

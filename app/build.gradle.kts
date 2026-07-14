@@ -96,9 +96,9 @@ dependencies {
   implementation(libs.coil.compose)
   implementation(libs.play.services.mlkit.document.scanner)
   implementation(libs.play.services.mlkit.text.recognition)
-  implementation(libs.androidx.biometric)
+  // implementation(libs.androidx.biometric)
   // implementation(libs.converter.moshi)
-  implementation(libs.firebase.ai)
+  // implementation(libs.firebase.ai)
   // Uncomment to use Firestore:
   // implementation(libs.firebase.firestore)
 
@@ -106,10 +106,10 @@ dependencies {
   // If you are using Firebase Auth with other providers (e.g. Email/Password), you may only need
   // firebase-auth.
   // implementation(libs.firebase.auth)
-  implementation(libs.androidx.credentials)
-  implementation(libs.androidx.credentials.play.services)
-  implementation(libs.googleid)
-  implementation(libs.firebase.appcheck.recaptcha)
+  // implementation(libs.androidx.credentials)
+  // implementation(libs.androidx.credentials.play.services)
+  // implementation(libs.googleid)
+  // implementation(libs.firebase.appcheck.recaptcha)
   implementation(libs.kotlinx.coroutines.android)
   implementation(libs.kotlinx.coroutines.core)
   implementation(libs.logging.interceptor)
@@ -117,7 +117,7 @@ dependencies {
   implementation(libs.okhttp)
   implementation(libs.apache.poi)
   implementation(libs.apache.poi.ooxml)
-  implementation(libs.pdfbox.android)
+  // implementation(libs.pdfbox.android)
   // implementation(libs.play.services.location)
   // implementation(libs.retrofit)
   testImplementation(libs.androidx.compose.ui.test.junit4)
