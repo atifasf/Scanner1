@@ -43,6 +43,8 @@ fun DocumentDetailScreen(
     var document by remember { mutableStateOf<DocumentEntity?>(null) }
     var isOcrLoading by remember { mutableStateOf(false) }
     var isTableScanLoading by remember { mutableStateOf(false) }
+    var editingFile by remember { mutableStateOf<File?>(null) }
+    var imageRefreshTrigger by remember { mutableStateOf(0) }
 
     LaunchedEffect(documentId) {
         document = viewModel.getDocumentById(documentId)
@@ -76,7 +78,10 @@ fun DocumentDetailScreen(
                             if (file != null && file.exists()) {
                                 val uri = FileProvider.getUriForFile(context, "${context.packageName}.provider", file)
                                 val shareIntent = Intent(Intent.ACTION_SEND).apply {
-                                    type = if (it.pdfPath != null) "application/pdf" else "image/jpeg"
+                                    type = if (it.pdfPath != null) {
+                                        if (it.pdfPath.endsWith(".docx")) "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                                        else "application/pdf"
+                                    } else "image/jpeg"
                                     putExtra(Intent.EXTRA_STREAM, uri)
                                     addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                                 }
@@ -103,14 +108,38 @@ fun DocumentDetailScreen(
             ) {
                 val imagePaths = document!!.imagePaths.split(",").filter { it.isNotEmpty() }
                 if (imagePaths.isNotEmpty()) {
-                    AsyncImage(
-                        model = File(imagePaths.first()),
-                        contentDescription = "Document preview",
-                        contentScale = ContentScale.FillWidth,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .heightIn(max = 400.dp)
-                    )
+                    Box(modifier = Modifier.fillMaxWidth().heightIn(max = 400.dp)) {
+                        AsyncImage(
+                            model = remember(imagePaths, imageRefreshTrigger) {
+                                coil.request.ImageRequest.Builder(context)
+                                    .data(File(imagePaths.first()))
+                                    .memoryCachePolicy(coil.request.CachePolicy.DISABLED)
+                                    .build()
+                            },
+                            contentDescription = "Document preview",
+                            contentScale = ContentScale.FillWidth,
+                            modifier = Modifier.fillMaxWidth().heightIn(max = 400.dp)
+                        )
+                        
+                        FilledIconButton(
+                            onClick = {
+                                editingFile = File(imagePaths.first())
+                            },
+                            colors = IconButtonDefaults.filledIconButtonColors(
+                                containerColor = MaterialTheme.colorScheme.primaryContainer,
+                                contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                            ),
+                            modifier = Modifier
+                                .align(Alignment.BottomEnd)
+                                .padding(16.dp)
+                                .size(48.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Gesture,
+                                contentDescription = "Erase & Clean"
+                            )
+                        }
+                    }
                 }
 
                 Spacer(modifier = Modifier.height(16.dp))
@@ -259,5 +288,19 @@ fun DocumentDetailScreen(
                 com.example.ui.components.BannerAd()
             }
         }
+    }
+
+    if (editingFile != null) {
+        com.example.ui.components.EraserCanvasEditor(
+            imageFile = editingFile!!,
+            onSave = {
+                imageRefreshTrigger++
+                editingFile = null
+                Toast.makeText(context, "Saved changes successfully!", Toast.LENGTH_SHORT).show()
+            },
+            onDismiss = {
+                editingFile = null
+            }
+        )
     }
 }

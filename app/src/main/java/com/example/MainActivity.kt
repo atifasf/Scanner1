@@ -36,6 +36,16 @@ import com.google.android.gms.ads.MobileAds
 class MainActivity : FragmentActivity() {
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
+    
+    // Pre-create WebView Code Cache directories to prevent Chromium readdir/opendir errors
+    createWebViewCacheDirs()
+
+    // Also recreate them after a delay of 1, 2, and 5 seconds to ensure they persist after WebView/Chromium initialization clears its caches
+    val handler = android.os.Handler(android.os.Looper.getMainLooper())
+    handler.postDelayed({ createWebViewCacheDirs() }, 1000)
+    handler.postDelayed({ createWebViewCacheDirs() }, 2000)
+    handler.postDelayed({ createWebViewCacheDirs() }, 5000)
+
     MobileAds.initialize(this) {}
     enableEdgeToEdge()
     
@@ -97,6 +107,30 @@ class MainActivity : FragmentActivity() {
             }
         }
       }
+    }
+  }
+
+  private fun createWebViewCacheDirs() {
+    try {
+        val jsDir = java.io.File(cacheDir, "WebView/Default/HTTP Cache/Code Cache/js")
+        if (!jsDir.exists()) {
+            jsDir.mkdirs()
+        }
+        val jsPlaceholder = java.io.File(jsDir, ".placeholder")
+        if (!jsPlaceholder.exists()) {
+            jsPlaceholder.createNewFile()
+        }
+        
+        val wasmDir = java.io.File(cacheDir, "WebView/Default/HTTP Cache/Code Cache/wasm")
+        if (!wasmDir.exists()) {
+            wasmDir.mkdirs()
+        }
+        val wasmPlaceholder = java.io.File(wasmDir, ".placeholder")
+        if (!wasmPlaceholder.exists()) {
+            wasmPlaceholder.createNewFile()
+        }
+    } catch (e: Exception) {
+        e.printStackTrace()
     }
   }
 }

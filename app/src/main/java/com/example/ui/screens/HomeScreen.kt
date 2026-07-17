@@ -1,6 +1,8 @@
 package com.example.ui.screens
 
 import android.app.Activity
+import android.widget.Toast
+import java.util.UUID
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -163,12 +165,482 @@ fun HomeScreen(
         )
     }
 
+    var scannedImageUris by remember { mutableStateOf<List<android.net.Uri>?>(null) }
+    var currentFolderId by remember { mutableStateOf<String?>(null) }
+    var showFormatSelectionScreen by remember { mutableStateOf(false) }
+    var renameStepActive by remember { mutableStateOf(false) }
+    var documentNameInput by remember { mutableStateOf("") }
+    var isNameEditedByUser by remember { mutableStateOf(false) }
+    
+    var editingFile by remember { mutableStateOf<File?>(null) }
+    var editingPageIndex by remember { mutableStateOf(-1) }
+    var scannedImagesRefreshTrigger by remember { mutableStateOf(0) }
+
+    if (showFormatSelectionScreen && scannedImageUris != null) {
+        val ocrProgressState by viewModel.ocrProgress.collectAsState()
+        var selectedFormat by remember { mutableStateOf(com.example.ui.DocumentViewModel.OutputFormat.PDF) }
+        var isSearchablePdf by remember { mutableStateOf(false) }
+        
+        val defaultPrefix = when (selectedFormat) {
+            com.example.ui.DocumentViewModel.OutputFormat.PDF -> "Scan"
+            com.example.ui.DocumentViewModel.OutputFormat.JPEG -> "Scan_Img"
+            com.example.ui.DocumentViewModel.OutputFormat.WORD -> "Scan_Doc"
+        }
+        
+        LaunchedEffect(selectedFormat, showFormatSelectionScreen) {
+            if (!isNameEditedByUser && showFormatSelectionScreen) {
+                documentNameInput = "${defaultPrefix}_${SimpleDateFormat("yyyyMMdd_HHmm", Locale.getDefault()).format(Date())}"
+            }
+        }
+        
+        LaunchedEffect(showFormatSelectionScreen) {
+            if (!showFormatSelectionScreen) {
+                renameStepActive = false
+                isNameEditedByUser = false
+            }
+        }
+        
+        AlertDialog(
+            onDismissRequest = { 
+                if (ocrProgressState == null) {
+                    showFormatSelectionScreen = false 
+                    scannedImageUris = null
+                    renameStepActive = false
+                    isNameEditedByUser = false
+                }
+            },
+            title = {
+                Text(
+                    text = if (ocrProgressState != null) "Processing..." else if (renameStepActive) "Rename Document" else "Export Settings",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+            },
+            text = {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 8.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    if (ocrProgressState != null) {
+                        Column(
+                            modifier = Modifier.fillMaxWidth().padding(16.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(48.dp),
+                                color = MaterialTheme.colorScheme.primary,
+                                strokeWidth = 4.dp
+                            )
+                            Text(
+                                text = ocrProgressState!!,
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.Medium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    } else if (renameStepActive) {
+                        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                            Text(
+                                text = "Give your scanned document a descriptive name so it's easy to find in the list.",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            
+                            OutlinedTextField(
+                                value = documentNameInput,
+                                onValueChange = { 
+                                    documentNameInput = it
+                                    isNameEditedByUser = true
+                                },
+                                label = { Text("Document Name") },
+                                singleLine = true,
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(12.dp),
+                                trailingIcon = {
+                                    if (documentNameInput.isNotEmpty()) {
+                                        IconButton(onClick = { 
+                                            documentNameInput = "" 
+                                            isNameEditedByUser = true
+                                        }) {
+                                            Icon(Icons.Default.Clear, contentDescription = "Clear")
+                                        }
+                                    }
+                                }
+                            )
+                            
+                            Spacer(modifier = Modifier.height(4.dp))
+                            
+                            Card(
+                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondary.copy(alpha = 0.08f)),
+                                shape = RoundedCornerShape(8.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(12.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Info,
+                                        contentDescription = "Format Info",
+                                        tint = MaterialTheme.colorScheme.secondary,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Text(
+                                        text = "Will be saved as ${selectedFormat.name} format.",
+                                        style = MaterialTheme.typography.labelMedium,
+                                        fontWeight = FontWeight.Medium,
+                                        color = MaterialTheme.colorScheme.secondary
+                                    )
+                                }
+                            }
+                        }
+                    } else {
+                        // Page review and edit section with Eraser Tool
+                        Text(
+                            text = "Scanned Pages (Tap to edit/erase):",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .horizontalScroll(rememberScrollState())
+                                .padding(vertical = 4.dp),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            scannedImageUris?.forEachIndexed { index, uri ->
+                                val file = File(uri.path ?: "")
+                                Box(
+                                    modifier = Modifier
+                                        .size(width = 90.dp, height = 120.dp)
+                                        .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(8.dp))
+                                        .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(8.dp))
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .clickable {
+                                            editingFile = file
+                                            editingPageIndex = index
+                                        },
+                                    contentAlignment = Alignment.BottomCenter
+                                ) {
+                                    AsyncImage(
+                                        model = remember(file, scannedImagesRefreshTrigger) {
+                                            coil.request.ImageRequest.Builder(context)
+                                                .data(file)
+                                                .memoryCachePolicy(coil.request.CachePolicy.DISABLED)
+                                                .build()
+                                        },
+                                        contentDescription = null,
+                                        contentScale = ContentScale.Crop,
+                                        modifier = Modifier.fillMaxSize()
+                                    )
+                                    
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .background(Color.Black.copy(alpha = 0.6f))
+                                            .padding(vertical = 4.dp),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.Gesture,
+                                                contentDescription = "Eraser",
+                                                tint = Color.White,
+                                                modifier = Modifier.size(12.dp)
+                                            )
+                                            Text(
+                                                text = "Eraser",
+                                                color = Color.White,
+                                                fontSize = 10.sp,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        
+                        HorizontalDivider()
+
+                        Text(
+                            text = "Choose the file format for your scanned document:",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Card(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .clickable { selectedFormat = com.example.ui.DocumentViewModel.OutputFormat.PDF },
+                                colors = CardDefaults.cardColors(
+                                    containerColor = if (selectedFormat == com.example.ui.DocumentViewModel.OutputFormat.PDF) 
+                                        MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant
+                                )
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(16.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    RadioButton(
+                                        selected = selectedFormat == com.example.ui.DocumentViewModel.OutputFormat.PDF,
+                                        onClick = { selectedFormat = com.example.ui.DocumentViewModel.OutputFormat.PDF }
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Column {
+                                        Text(
+                                            text = "PDF Document (.pdf)",
+                                            style = MaterialTheme.typography.bodyLarge,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                        Text(
+                                            text = "Best for sharing as a single multi-page file.",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                }
+                            }
+                            
+                            Card(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .clickable { selectedFormat = com.example.ui.DocumentViewModel.OutputFormat.JPEG },
+                                colors = CardDefaults.cardColors(
+                                    containerColor = if (selectedFormat == com.example.ui.DocumentViewModel.OutputFormat.JPEG) 
+                                        MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant
+                                )
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(16.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    RadioButton(
+                                        selected = selectedFormat == com.example.ui.DocumentViewModel.OutputFormat.JPEG,
+                                        onClick = { selectedFormat = com.example.ui.DocumentViewModel.OutputFormat.JPEG }
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Column {
+                                        Text(
+                                            text = "JPEG Images (.jpg)",
+                                            style = MaterialTheme.typography.bodyLarge,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                        Text(
+                                            text = "Saves each page as an optimized high-quality image.",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                }
+                            }
+                            
+                            Card(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .clickable { selectedFormat = com.example.ui.DocumentViewModel.OutputFormat.WORD },
+                                colors = CardDefaults.cardColors(
+                                    containerColor = if (selectedFormat == com.example.ui.DocumentViewModel.OutputFormat.WORD) 
+                                        MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant
+                                )
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(16.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    RadioButton(
+                                        selected = selectedFormat == com.example.ui.DocumentViewModel.OutputFormat.WORD,
+                                        onClick = { selectedFormat = com.example.ui.DocumentViewModel.OutputFormat.WORD }
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Column {
+                                        Text(
+                                            text = "Word Document (.docx)",
+                                            style = MaterialTheme.typography.bodyLarge,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                        Text(
+                                            text = "Extracts editable text using high-accuracy OCR.",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                        
+                        if (selectedFormat == com.example.ui.DocumentViewModel.OutputFormat.PDF) {
+                            HorizontalDivider()
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { isSearchablePdf = !isSearchablePdf }
+                                    .padding(vertical = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = "Searchable PDF (OCR)",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                    Text(
+                                        text = "Make text in the PDF selectable and searchable.",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                                Switch(
+                                    checked = isSearchablePdf,
+                                    onCheckedChange = { isSearchablePdf = it }
+                                )
+                            }
+                        }
+                        
+                        Card(
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.08f)),
+                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(12.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Bolt,
+                                    contentDescription = "Optimize",
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Text(
+                                    text = "Smart File Size Optimization Active",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                if (ocrProgressState == null) {
+                    if (renameStepActive) {
+                        Button(
+                            onClick = {
+                                viewModel.saveScannedDocumentWithFormat(
+                                    imageUris = scannedImageUris!!,
+                                    format = selectedFormat,
+                                    isSearchablePdf = isSearchablePdf,
+                                    customName = documentNameInput,
+                                    folderId = currentFolderId
+                                ) {
+                                    showFormatSelectionScreen = false
+                                    scannedImageUris = null
+                                    renameStepActive = false
+                                    isNameEditedByUser = false
+                                }
+                            },
+                            enabled = documentNameInput.isNotBlank()
+                        ) {
+                            Text("Save & Export")
+                        }
+                    } else {
+                        Button(
+                            onClick = {
+                                renameStepActive = true
+                            }
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                Text("Next")
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                                    contentDescription = "Next",
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+            },
+            dismissButton = {
+                if (ocrProgressState == null) {
+                    if (renameStepActive) {
+                        TextButton(
+                            onClick = {
+                                renameStepActive = false
+                            }
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                    contentDescription = "Back",
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Text("Back")
+                            }
+                        }
+                    } else {
+                        TextButton(
+                            onClick = {
+                                showFormatSelectionScreen = false
+                                scannedImageUris = null
+                            }
+                        ) {
+                            Text("Cancel")
+                        }
+                    }
+                }
+            }
+        )
+    }
+
     val scannerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartIntentSenderForResult()
     ) { result ->
         ScannerHelper.handleScanResult(result) { imageUris, pdfUri ->
             val folderId = if (selectedCategory.startsWith("Folder_")) selectedCategory.removePrefix("Folder_") else null
-            viewModel.saveScannedDocument(imageUris, pdfUri, folderId)
+            if (imageUris.isNotEmpty()) {
+                // Copy read-only system URIs to editable local cache files!
+                val id = UUID.randomUUID().toString()
+                val cachedUris = imageUris.mapIndexed { index, uri ->
+                    val file = File(context.cacheDir, "temp_edit_${id}_$index.jpg")
+                    try {
+                        context.contentResolver.openInputStream(uri)?.use { input ->
+                            file.outputStream().use { output ->
+                                input.copyTo(output)
+                            }
+                        }
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                    }
+                    android.net.Uri.fromFile(file)
+                }
+                scannedImageUris = cachedUris
+                currentFolderId = folderId
+                showFormatSelectionScreen = true
+            }
         }
     }
 
@@ -380,7 +852,10 @@ fun HomeScreen(
                                     if (file != null && file.exists()) {
                                         val uri = androidx.core.content.FileProvider.getUriForFile(context, "${context.packageName}.provider", file)
                                         val shareIntent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
-                                            type = if (doc.pdfPath != null) "application/pdf" else "image/jpeg"
+                                            type = if (doc.pdfPath != null) {
+                                                if (doc.pdfPath.endsWith(".docx")) "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                                                else "application/pdf"
+                                            } else "image/jpeg"
                                             putExtra(android.content.Intent.EXTRA_STREAM, uri)
                                             addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
                                         }
@@ -404,6 +879,22 @@ fun HomeScreen(
                 com.example.ui.screens.ToolsTab(viewModel, padding, context)
             }
         } // end of when
+    }
+
+    if (editingFile != null) {
+        com.example.ui.components.EraserCanvasEditor(
+            imageFile = editingFile!!,
+            onSave = {
+                scannedImagesRefreshTrigger++
+                editingFile = null
+                editingPageIndex = -1
+                Toast.makeText(context, "Page updated successfully!", Toast.LENGTH_SHORT).show()
+            },
+            onDismiss = {
+                editingFile = null
+                editingPageIndex = -1
+            }
+        )
     }
 }
 
