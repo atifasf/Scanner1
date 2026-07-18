@@ -38,6 +38,10 @@ import coil.compose.AsyncImage
 import com.example.data.DocumentEntity
 import com.example.ui.DocumentViewModel
 import com.example.ui.ScannerHelper
+import com.example.ui.OCRHelper
+import android.net.Uri
+import kotlinx.coroutines.launch
+import androidx.compose.runtime.rememberCoroutineScope
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.*
@@ -59,6 +63,16 @@ fun HomeScreen(
     var folderToRename by remember { mutableStateOf<com.example.data.FolderEntity?>(null) }
     var documentToRename by remember { mutableStateOf<DocumentEntity?>(null) }
     var currentTab by remember { mutableStateOf("Home") }
+
+    var isIdCardScan by remember { mutableStateOf(false) }
+    var isExtractTextFromCamera by remember { mutableStateOf(false) }
+    var isTableScanFromCamera by remember { mutableStateOf(false) }
+    
+    var showIdCardGuideDialog by remember { mutableStateOf(false) }
+    var showExtractTextOptionsDialog by remember { mutableStateOf(false) }
+    var showTableScanOptionsDialog by remember { mutableStateOf(false) }
+
+    val coroutineScope = rememberCoroutineScope()
 
     if (documentToRename != null) {
         var newDocumentName by remember { mutableStateOf(documentToRename!!.name) }
@@ -207,6 +221,7 @@ fun HomeScreen(
                     scannedImageUris = null
                     renameStepActive = false
                     isNameEditedByUser = false
+                    isIdCardScan = false
                 }
             },
             title = {
@@ -548,12 +563,14 @@ fun HomeScreen(
                                     format = selectedFormat,
                                     isSearchablePdf = isSearchablePdf,
                                     customName = documentNameInput,
-                                    folderId = currentFolderId
+                                    folderId = currentFolderId,
+                                    isIdCardGrid = isIdCardScan
                                 ) {
                                     showFormatSelectionScreen = false
                                     scannedImageUris = null
                                     renameStepActive = false
                                     isNameEditedByUser = false
+                                    isIdCardScan = false
                                 }
                             },
                             enabled = documentNameInput.isNotBlank()
@@ -606,6 +623,7 @@ fun HomeScreen(
                             onClick = {
                                 showFormatSelectionScreen = false
                                 scannedImageUris = null
+                                isIdCardScan = false
                             }
                         ) {
                             Text("Cancel")
@@ -637,11 +655,257 @@ fun HomeScreen(
                     }
                     android.net.Uri.fromFile(file)
                 }
+                
                 scannedImageUris = cachedUris
                 currentFolderId = folderId
-                showFormatSelectionScreen = true
+                
+                if (isIdCardScan) {
+                    documentNameInput = "ID_Card_${SimpleDateFormat("yyyyMMdd_HHmm", Locale.getDefault()).format(Date())}"
+                    isNameEditedByUser = true
+                    showFormatSelectionScreen = true
+                } else if (isExtractTextFromCamera) {
+                    isExtractTextFromCamera = false
+                    viewModel.ocrImageUri = cachedUris.firstOrNull()
+                    viewModel.ocrIsTableSelected = false
+                    
+                    coroutineScope.launch {
+                        viewModel.ocrProgress.value = "Performing OCR..."
+                        val textBuilder = java.lang.StringBuilder()
+                        cachedUris.forEachIndexed { index, uri ->
+                            viewModel.ocrProgress.value = "Extracting text (Page ${index + 1} of ${cachedUris.size})..."
+                            val extractedText = viewModel.extractTextFromUri(context, uri)
+                            if (extractedText.isNotBlank()) {
+                                textBuilder.append(extractedText).append("\n\n")
+                            }
+                        }
+                        viewModel.ocrExtractedText = textBuilder.toString().trim()
+                        viewModel.ocrProgress.value = null
+                        currentTab = "OCR"
+                    }
+                } else if (isTableScanFromCamera) {
+                    isTableScanFromCamera = false
+                    val firstUri = cachedUris.firstOrNull()
+                    viewModel.ocrImageUri = firstUri
+                    viewModel.ocrIsTableSelected = true
+                    currentTab = "OCR"
+                    
+                    if (firstUri != null) {
+                        coroutineScope.launch {
+                            viewModel.ocrProgress.value = "Extracting table..."
+                            viewModel.ocrExtractedText = ""
+                            OCRHelper.extractTableAsCsv(context, firstUri, onSuccess = { csv ->
+                                viewModel.ocrExtractedText = csv
+                                viewModel.ocrProgress.value = null
+                            }, onError = { err ->
+                                viewModel.ocrExtractedText = "Failed to extract table: ${err.message}"
+                                viewModel.ocrProgress.value = null
+                            })
+                        }
+                    }
+                } else {
+                    showFormatSelectionScreen = true
+                }
             }
         }
+    }
+
+    val galleryImagePicker = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        if (uri != null) {
+            viewModel.ocrImageUri = uri
+            viewModel.ocrIsTableSelected = false
+            currentTab = "OCR"
+            coroutineScope.launch {
+                viewModel.ocrProgress.value = "Performing OCR..."
+                viewModel.ocrExtractedText = ""
+                val extracted = viewModel.extractTextFromUri(context, uri)
+                viewModel.ocrExtractedText = extracted
+                viewModel.ocrProgress.value = null
+            }
+        }
+    }
+
+    val galleryTablePicker = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        if (uri != null) {
+            viewModel.ocrImageUri = uri
+            viewModel.ocrIsTableSelected = true
+            currentTab = "OCR"
+            coroutineScope.launch {
+                viewModel.ocrProgress.value = "Extracting table..."
+                viewModel.ocrExtractedText = ""
+                OCRHelper.extractTableAsCsv(context, uri, onSuccess = { csv ->
+                    viewModel.ocrExtractedText = csv
+                    viewModel.ocrProgress.value = null
+                }, onError = { err ->
+                    viewModel.ocrExtractedText = "Failed to extract table: ${err.message}"
+                    viewModel.ocrProgress.value = null
+                })
+            }
+        }
+    }
+
+    val pdfPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        if (uri != null) {
+            viewModel.convertPdfToWord(
+                pdfUri = uri,
+                onStart = {
+                    viewModel.ocrProgress.value = "Opening PDF..."
+                },
+                onProgress = { status ->
+                    viewModel.ocrProgress.value = status
+                },
+                onSuccess = { name ->
+                    viewModel.ocrProgress.value = null
+                    Toast.makeText(context, "Successfully converted: $name", Toast.LENGTH_LONG).show()
+                },
+                onFailure = { error ->
+                    viewModel.ocrProgress.value = null
+                    Toast.makeText(context, "Error: $error", Toast.LENGTH_LONG).show()
+                }
+            )
+        }
+    }
+
+    if (showIdCardGuideDialog) {
+        AlertDialog(
+            onDismissRequest = { showIdCardGuideDialog = false },
+            title = { Text("ID Card Scan", fontWeight = FontWeight.Bold) },
+            text = {
+                Text("Place your ID card/Card on a flat, well-lit surface.\n\n" +
+                     "1. First scan the Front side of the card.\n" +
+                     "2. Then tap 'Add Page' to scan the Back side.\n\n" +
+                     "Both sides will be automatically compiled into a professional document.",
+                     style = MaterialTheme.typography.bodyMedium)
+            },
+            confirmButton = {
+                Button(onClick = {
+                    showIdCardGuideDialog = false
+                    isIdCardScan = true
+                    val activity = generateSequence(context) { (it as? android.content.ContextWrapper)?.baseContext }.filterIsInstance<Activity>().firstOrNull()
+                    if (activity != null) {
+                        ScannerHelper.startScan(activity, scannerLauncher)
+                    }
+                }) {
+                    Text("Start Scan")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showIdCardGuideDialog = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
+    if (showExtractTextOptionsDialog) {
+        AlertDialog(
+            onDismissRequest = { showExtractTextOptionsDialog = false },
+            title = { Text("Extract Text (OCR)", fontWeight = FontWeight.Bold) },
+            text = {
+                Text("Choose whether to scan a printed document with your camera or select an image from your gallery.",
+                     style = MaterialTheme.typography.bodyMedium)
+            },
+            confirmButton = {
+                Column(
+                    modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Button(
+                        modifier = Modifier.fillMaxWidth(),
+                        onClick = {
+                            showExtractTextOptionsDialog = false
+                            isExtractTextFromCamera = true
+                            val activity = generateSequence(context) { (it as? android.content.ContextWrapper)?.baseContext }.filterIsInstance<Activity>().firstOrNull()
+                            if (activity != null) {
+                                ScannerHelper.startScan(activity, scannerLauncher)
+                            }
+                        }
+                    ) {
+                        Icon(Icons.Default.PhotoCamera, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Scan Document (Camera)")
+                    }
+                    
+                    OutlinedButton(
+                        modifier = Modifier.fillMaxWidth(),
+                        onClick = {
+                            showExtractTextOptionsDialog = false
+                            galleryImagePicker.launch("image/*")
+                        }
+                    ) {
+                        Icon(Icons.Default.Image, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Choose from Gallery")
+                    }
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    modifier = Modifier.fillMaxWidth(),
+                    onClick = { showExtractTextOptionsDialog = false }
+                ) {
+                    Text("Cancel", modifier = Modifier.fillMaxWidth(), textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                }
+            }
+        )
+    }
+
+    if (showTableScanOptionsDialog) {
+        AlertDialog(
+            onDismissRequest = { showTableScanOptionsDialog = false },
+            title = { Text("Scan Table (Excel)", fontWeight = FontWeight.Bold) },
+            text = {
+                Text("Scan a spreadsheet/table with your camera or select an image from your gallery to extract structured rows and columns as Excel.",
+                     style = MaterialTheme.typography.bodyMedium)
+            },
+            confirmButton = {
+                Column(
+                    modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Button(
+                        modifier = Modifier.fillMaxWidth(),
+                        onClick = {
+                            showTableScanOptionsDialog = false
+                            isTableScanFromCamera = true
+                            val activity = generateSequence(context) { (it as? android.content.ContextWrapper)?.baseContext }.filterIsInstance<Activity>().firstOrNull()
+                            if (activity != null) {
+                                ScannerHelper.startScan(activity, scannerLauncher)
+                            }
+                        }
+                    ) {
+                        Icon(Icons.Default.PhotoCamera, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Scan Table (Camera)")
+                    }
+                    
+                    OutlinedButton(
+                        modifier = Modifier.fillMaxWidth(),
+                        onClick = {
+                            showTableScanOptionsDialog = false
+                            galleryTablePicker.launch("image/*")
+                        }
+                    ) {
+                        Icon(Icons.Default.Image, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Choose from Gallery")
+                    }
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    modifier = Modifier.fillMaxWidth(),
+                    onClick = { showTableScanOptionsDialog = false }
+                ) {
+                    Text("Cancel", modifier = Modifier.fillMaxWidth(), textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                }
+            }
+        )
     }
 
     Scaffold(
@@ -666,7 +930,7 @@ fun HomeScreen(
                     shape = RoundedCornerShape(24.dp),
                     modifier = Modifier.size(64.dp)
                 ) {
-                    Icon(Icons.Default.Add, contentDescription = "Scan", modifier = Modifier.size(32.dp))
+                    Icon(Icons.Default.PhotoCamera, contentDescription = "Scan", modifier = Modifier.size(32.dp))
                 }
             }
         }
@@ -675,58 +939,172 @@ fun HomeScreen(
             "Home" -> {
                 Column(modifier = Modifier.padding(padding).fillMaxSize()) {
             // Header
-            Row(
+            Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(16.dp),
-                verticalAlignment = Alignment.CenterVertically
+                    .padding(horizontal = 16.dp, vertical = 12.dp)
             ) {
-                Row(
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(48.dp)
-                        .background(MaterialTheme.colorScheme.surfaceVariant, CircleShape)
-                        .padding(horizontal = 16.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                Text(
+                    text = "DocScanner",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+                
+                // 2x2 Feature Grid
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    Icon(
-                        Icons.Default.Search,
-                        contentDescription = "Search",
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(20.dp)
-                    )
-                    Spacer(modifier = Modifier.width(12.dp))
-                    BasicTextField(
-                        value = searchQuery,
-                        onValueChange = viewModel::setSearchQuery,
+                    Row(
                         modifier = Modifier.fillMaxWidth(),
-                        singleLine = true,
-                        decorationBox = { innerTextField ->
-                            if (searchQuery.isEmpty()) {
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        // ID Card Scan Button
+                        Card(
+                            onClick = { showIdCardGuideDialog = true },
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(96.dp),
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
+                            ),
+                            shape = RoundedCornerShape(16.dp)
+                        ) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .padding(12.dp),
+                                verticalArrangement = Arrangement.Center,
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.CreditCard,
+                                    contentDescription = "ID Card Scan",
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(28.dp)
+                                )
+                                Spacer(modifier = Modifier.height(6.dp))
                                 Text(
-                                    text = "Search documents",
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    fontSize = 14.sp
+                                    text = "ID Card Scan",
+                                    style = MaterialTheme.typography.labelLarge,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                    maxLines = 1
                                 )
                             }
-                            innerTextField()
                         }
-                    )
-                }
-                Spacer(modifier = Modifier.width(12.dp))
-                Box(
-                    modifier = Modifier
-                        .size(40.dp)
-                        .background(MaterialTheme.colorScheme.primaryContainer, CircleShape)
-                        .border(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.2f), CircleShape),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        "SV",
-                        color = MaterialTheme.colorScheme.onPrimaryContainer,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 12.sp
-                    )
+                        
+                        // Extract Text Button
+                        Card(
+                            onClick = { showExtractTextOptionsDialog = true },
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(96.dp),
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f)
+                            ),
+                            shape = RoundedCornerShape(16.dp)
+                        ) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .padding(12.dp),
+                                verticalArrangement = Arrangement.Center,
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Description,
+                                    contentDescription = "Extract Text",
+                                    tint = MaterialTheme.colorScheme.secondary,
+                                    modifier = Modifier.size(28.dp)
+                                )
+                                Spacer(modifier = Modifier.height(6.dp))
+                                Text(
+                                    text = "Extract Text",
+                                    style = MaterialTheme.typography.labelLarge,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSecondaryContainer,
+                                    maxLines = 1
+                                )
+                            }
+                        }
+                    }
+                    
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        // PDF to Word Button
+                        Card(
+                            onClick = { pdfPickerLauncher.launch("application/pdf") },
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(96.dp),
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.5f)
+                            ),
+                            shape = RoundedCornerShape(16.dp)
+                        ) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .padding(12.dp),
+                                verticalArrangement = Arrangement.Center,
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.InsertDriveFile,
+                                    contentDescription = "PDF to Word",
+                                    tint = MaterialTheme.colorScheme.tertiary,
+                                    modifier = Modifier.size(28.dp)
+                                )
+                                Spacer(modifier = Modifier.height(6.dp))
+                                Text(
+                                    text = "PDF to Word",
+                                    style = MaterialTheme.typography.labelLarge,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onTertiaryContainer,
+                                    maxLines = 1
+                                )
+                            }
+                        }
+                        
+                        // Scan Table to Excel Button
+                        Card(
+                            onClick = { showTableScanOptionsDialog = true },
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(96.dp),
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                            ),
+                            shape = RoundedCornerShape(16.dp)
+                        ) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .padding(12.dp),
+                                verticalArrangement = Arrangement.Center,
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.GridOn,
+                                    contentDescription = "Scan Table",
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(28.dp)
+                                )
+                                Spacer(modifier = Modifier.height(6.dp))
+                                Text(
+                                    text = "Scan Table",
+                                    style = MaterialTheme.typography.labelLarge,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    maxLines = 1
+                                )
+                            }
+                        }
+                    }
                 }
             }
 
@@ -1147,7 +1525,16 @@ fun BottomNavItem(icon: androidx.compose.ui.graphics.vector.ImageVector, label: 
                     .background(MaterialTheme.colorScheme.primaryContainer, RoundedCornerShape(16.dp)),
                 contentAlignment = Alignment.Center
             ) {
-                Icon(icon, contentDescription = label, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
+                if (label == "OCR") {
+                    Text(
+                        text = "OCR",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                } else {
+                    Icon(icon, contentDescription = label, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
+                }
             }
         } else {
             Box(
@@ -1156,7 +1543,16 @@ fun BottomNavItem(icon: androidx.compose.ui.graphics.vector.ImageVector, label: 
                     .height(32.dp),
                 contentAlignment = Alignment.Center
             ) {
-                Icon(icon, contentDescription = label, tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f), modifier = Modifier.size(20.dp))
+                if (label == "OCR") {
+                    Text(
+                        text = "OCR",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)
+                    )
+                } else {
+                    Icon(icon, contentDescription = label, tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f), modifier = Modifier.size(20.dp))
+                }
             }
         }
         Spacer(modifier = Modifier.height(4.dp))
