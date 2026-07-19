@@ -71,8 +71,93 @@ fun HomeScreen(
     var showIdCardGuideDialog by remember { mutableStateOf(false) }
     var showExtractTextOptionsDialog by remember { mutableStateOf(false) }
     var showTableScanOptionsDialog by remember { mutableStateOf(false) }
+    var successDialogDoc by remember { mutableStateOf<DocumentEntity?>(null) }
 
     val coroutineScope = rememberCoroutineScope()
+
+    if (successDialogDoc != null) {
+        val doc = successDialogDoc!!
+        AlertDialog(
+            onDismissRequest = { successDialogDoc = null },
+            title = { Text("Success!", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary) },
+            text = { Text("ID Card PDF has been created successfully.") },
+            confirmButton = {
+                Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(modifier = Modifier.fillMaxWidth(), onClick = {
+                        successDialogDoc = null
+                        val pdfFile = java.io.File(doc.pdfPath ?: "")
+                        if (pdfFile.exists()) {
+                            val uri = androidx.core.content.FileProvider.getUriForFile(context, "${context.packageName}.provider", pdfFile)
+                            val shareIntent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                                type = "application/pdf"
+                                putExtra(android.content.Intent.EXTRA_STREAM, uri)
+                                addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                            }
+                            context.startActivity(android.content.Intent.createChooser(shareIntent, "Share PDF"))
+                        }
+                    }) {
+                        Icon(Icons.Default.Share, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Share")
+                    }
+                    
+                    Button(modifier = Modifier.fillMaxWidth(), onClick = {
+                        successDialogDoc = null
+                        val pdfFile = java.io.File(doc.pdfPath ?: "")
+                        if (pdfFile.exists()) {
+                            val printManager = context.getSystemService(android.content.Context.PRINT_SERVICE) as? android.print.PrintManager
+                            printManager?.let { pm ->
+                                val jobName = "Document Print - ${doc.name}"
+                                val printAdapter = object : android.print.PrintDocumentAdapter() {
+                                    override fun onWrite(pages: Array<out android.print.PageRange>?, destination: android.os.ParcelFileDescriptor?, cancellationSignal: android.os.CancellationSignal?, callback: WriteResultCallback?) {
+                                        var inStream: java.io.InputStream? = null
+                                        var outStream: java.io.OutputStream? = null
+                                        try {
+                                            inStream = java.io.FileInputStream(pdfFile)
+                                            outStream = java.io.FileOutputStream(destination?.fileDescriptor)
+                                            val buf = ByteArray(16384)
+                                            var size: Int
+                                            while (inStream.read(buf).also { size = it } >= 0 && cancellationSignal?.isCanceled == false) {
+                                                outStream.write(buf, 0, size)
+                                            }
+                                            if (cancellationSignal?.isCanceled == true) { callback?.onWriteCancelled() } else { callback?.onWriteFinished(arrayOf(android.print.PageRange.ALL_PAGES)) }
+                                        } catch (e: Exception) {
+                                            callback?.onWriteFailed(e.message)
+                                        } finally {
+                                            inStream?.close()
+                                            outStream?.close()
+                                        }
+                                    }
+                                    override fun onLayout(oldAttributes: android.print.PrintAttributes?, newAttributes: android.print.PrintAttributes?, cancellationSignal: android.os.CancellationSignal?, callback: LayoutResultCallback?, extras: android.os.Bundle?) {
+                                        if (cancellationSignal?.isCanceled == true) { callback?.onLayoutCancelled(); return }
+                                        val info = android.print.PrintDocumentInfo.Builder(doc.name + ".pdf").setContentType(android.print.PrintDocumentInfo.CONTENT_TYPE_DOCUMENT).build()
+                                        callback?.onLayoutFinished(info, true)
+                                    }
+                                }
+                                pm.print(jobName, printAdapter, android.print.PrintAttributes.Builder().build())
+                            }
+                        }
+                    }) {
+                        Icon(Icons.Default.Print, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Print")
+                    }
+                    
+                    OutlinedButton(modifier = Modifier.fillMaxWidth(), onClick = { successDialogDoc = null }) {
+                        Icon(Icons.Default.Save, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("View in Library")
+                    }
+                }
+            },
+            dismissButton = {
+                TextButton(modifier = Modifier.fillMaxWidth(), onClick = { successDialogDoc = null }) {
+                    Text("Close", modifier = Modifier.fillMaxWidth(), textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                }
+            }
+        )
+    }
+
 
     if (documentToRename != null) {
         var newDocumentName by remember { mutableStateOf(documentToRename!!.name) }
@@ -571,6 +656,7 @@ fun HomeScreen(
                                     renameStepActive = false
                                     isNameEditedByUser = false
                                     isIdCardScan = false
+                                    if (it.name.startsWith("ID_Card_")) { successDialogDoc = it }
                                 }
                             },
                             enabled = documentNameInput.isNotBlank()
@@ -842,14 +928,13 @@ fun HomeScreen(
                         Spacer(modifier = Modifier.width(8.dp))
                         Text("Choose from Gallery")
                     }
-                }
-            },
-            dismissButton = {
-                TextButton(
-                    modifier = Modifier.fillMaxWidth(),
-                    onClick = { showExtractTextOptionsDialog = false }
-                ) {
-                    Text("Cancel", modifier = Modifier.fillMaxWidth(), textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                    
+                    TextButton(
+                        modifier = Modifier.fillMaxWidth(),
+                        onClick = { showExtractTextOptionsDialog = false }
+                    ) {
+                        Text("Cancel")
+                    }
                 }
             }
         )
@@ -895,14 +980,13 @@ fun HomeScreen(
                         Spacer(modifier = Modifier.width(8.dp))
                         Text("Choose from Gallery")
                     }
-                }
-            },
-            dismissButton = {
-                TextButton(
-                    modifier = Modifier.fillMaxWidth(),
-                    onClick = { showTableScanOptionsDialog = false }
-                ) {
-                    Text("Cancel", modifier = Modifier.fillMaxWidth(), textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                    
+                    TextButton(
+                        modifier = Modifier.fillMaxWidth(),
+                        onClick = { showTableScanOptionsDialog = false }
+                    ) {
+                        Text("Cancel")
+                    }
                 }
             }
         )

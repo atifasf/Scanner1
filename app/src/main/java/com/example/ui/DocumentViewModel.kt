@@ -156,7 +156,7 @@ class DocumentViewModel(application: Application) : AndroidViewModel(application
         customName: String? = null,
         folderId: String? = null,
         isIdCardGrid: Boolean = false,
-        onComplete: () -> Unit
+        onComplete: (com.example.data.DocumentEntity) -> Unit
     ) {
         viewModelScope.launch(Dispatchers.IO) {
             ocrProgress.value = "Optimizing images..."
@@ -241,16 +241,15 @@ class DocumentViewModel(application: Application) : AndroidViewModel(application
                             val pageWidth = 595
                             val pageHeight = 842
                             
-                            val cardWidth = 185f
-                            val cardHeight = 117f
-                            val hGap = 10f
+                            val hGap = 15f
                             val vGap = 15f
+                            val margin = 30f
                             
-                            val totalGridWidth = 3 * cardWidth + 2 * hGap
-                            val leftMargin = (pageWidth - totalGridWidth) / 2f
+                            val availableWidth = pageWidth - 2 * margin
+                            val availableHeight = pageHeight - 2 * margin
                             
-                            val totalGridHeight = 3 * cardHeight + 2 * vGap
-                            val topMargin = (pageHeight - totalGridHeight) / 2f
+                            val cellWidth = (availableWidth - 2 * hGap) / 3f
+                            val cellHeight = (availableHeight - 2 * vGap) / 3f
                             
                             savedImages.forEachIndexed { index, imagePath ->
                                 val bitmap = BitmapFactory.decodeFile(imagePath)
@@ -268,14 +267,36 @@ class DocumentViewModel(application: Application) : AndroidViewModel(application
                                         strokeWidth = 0.5f
                                     }
                                     
+                                    val imgRatio = bitmap.width.toFloat() / bitmap.height.toFloat()
+                                    val cellRatio = cellWidth / cellHeight
+                                    
+                                    val drawWidth: Float
+                                    val drawHeight: Float
+                                    if (imgRatio > cellRatio) {
+                                        drawWidth = cellWidth
+                                        drawHeight = cellWidth / imgRatio
+                                    } else {
+                                        drawHeight = cellHeight
+                                        drawWidth = cellHeight * imgRatio
+                                    }
+                                    
+                                    // High-quality paint for drawing
+                                    val bmpPaint = Paint(Paint.FILTER_BITMAP_FLAG).apply {
+                                        isAntiAlias = true
+                                    }
+                                    
                                     // Draw 3x3 grid
                                     for (row in 0..2) {
                                         for (col in 0..2) {
-                                            val left = leftMargin + col * (cardWidth + hGap)
-                                            val top = topMargin + row * (cardHeight + vGap)
-                                            val rect = android.graphics.RectF(left, top, left + cardWidth, top + cardHeight)
+                                            val cellLeft = margin + col * (cellWidth + hGap)
+                                            val cellTop = margin + row * (cellHeight + vGap)
                                             
-                                            canvas.drawBitmap(bitmap, null, rect, null)
+                                            val imgLeft = cellLeft + (cellWidth - drawWidth) / 2f
+                                            val imgTop = cellTop + (cellHeight - drawHeight) / 2f
+                                            
+                                            val rect = android.graphics.RectF(imgLeft, imgTop, imgLeft + drawWidth, imgTop + drawHeight)
+                                            
+                                            canvas.drawBitmap(bitmap, null, rect, bmpPaint)
                                             canvas.drawRect(rect, borderPaint)
                                         }
                                     }
@@ -510,7 +531,7 @@ class DocumentViewModel(application: Application) : AndroidViewModel(application
             
             ocrProgress.value = null
             withContext(Dispatchers.Main) {
-                onComplete()
+                onComplete(doc)
             }
         }
     }
