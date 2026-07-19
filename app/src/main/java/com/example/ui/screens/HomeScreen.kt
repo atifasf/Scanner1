@@ -27,6 +27,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -143,7 +144,7 @@ fun HomeScreen(
                         Text("Print")
                     }
                     
-                    OutlinedButton(modifier = Modifier.fillMaxWidth(), onClick = { successDialogDoc = null }) {
+                    Button(modifier = Modifier.fillMaxWidth(), onClick = { successDialogDoc = null }) {
                         Icon(Icons.Default.Save, contentDescription = null, modifier = Modifier.size(18.dp))
                         Spacer(modifier = Modifier.width(8.dp))
                         Text("View in Library")
@@ -151,7 +152,7 @@ fun HomeScreen(
                 }
             },
             dismissButton = {
-                TextButton(modifier = Modifier.fillMaxWidth(), onClick = { successDialogDoc = null }) {
+                Button(modifier = Modifier.fillMaxWidth(), onClick = { successDialogDoc = null }) {
                     Text("Close", modifier = Modifier.fillMaxWidth(), textAlign = androidx.compose.ui.text.style.TextAlign.Center)
                 }
             }
@@ -172,7 +173,7 @@ fun HomeScreen(
                 )
             },
             confirmButton = {
-                TextButton(onClick = {
+                Button(onClick = {
                     if (newDocumentName.isNotBlank()) {
                         viewModel.updateDocument(documentToRename!!.copy(name = newDocumentName))
                         documentToRename = null
@@ -180,7 +181,7 @@ fun HomeScreen(
                 }) { Text("Rename") }
             },
             dismissButton = {
-                TextButton(onClick = { documentToRename = null }) { Text("Cancel") }
+                Button(onClick = { documentToRename = null }, colors = ButtonDefaults.filledTonalButtonColors(), elevation = ButtonDefaults.buttonElevation(defaultElevation = 4.dp, pressedElevation = 2.dp)) { Text("Cancel") }
             }
         )
     }
@@ -198,7 +199,7 @@ fun HomeScreen(
                 )
             },
             confirmButton = {
-                TextButton(onClick = {
+                Button(onClick = {
                     if (folderName.isNotBlank()) {
                         viewModel.createFolder(folderName)
                         showCreateFolderDialog = false
@@ -206,7 +207,7 @@ fun HomeScreen(
                 }) { Text("Create") }
             },
             dismissButton = {
-                TextButton(onClick = { showCreateFolderDialog = false }) { Text("Cancel") }
+                Button(onClick = { showCreateFolderDialog = false }, colors = ButtonDefaults.filledTonalButtonColors(), elevation = ButtonDefaults.buttonElevation(defaultElevation = 4.dp, pressedElevation = 2.dp)) { Text("Cancel") }
             }
         )
     }
@@ -224,7 +225,7 @@ fun HomeScreen(
                 )
             },
             confirmButton = {
-                TextButton(onClick = {
+                Button(onClick = {
                     if (newFolderName.isNotBlank()) {
                         viewModel.updateFolder(folderToRename!!.copy(name = newFolderName))
                         folderToRename = null
@@ -232,7 +233,7 @@ fun HomeScreen(
                 }) { Text("Rename") }
             },
             dismissButton = {
-                TextButton(onClick = { folderToRename = null }) { Text("Cancel") }
+                Button(onClick = { folderToRename = null }, colors = ButtonDefaults.filledTonalButtonColors(), elevation = ButtonDefaults.buttonElevation(defaultElevation = 4.dp, pressedElevation = 2.dp)) { Text("Cancel") }
             }
         )
     }
@@ -259,7 +260,7 @@ fun HomeScreen(
                 }
             },
             confirmButton = {
-                TextButton(onClick = { documentToMove = null }) { Text("Cancel") }
+                Button(onClick = { documentToMove = null }, colors = ButtonDefaults.filledTonalButtonColors(), elevation = ButtonDefaults.buttonElevation(defaultElevation = 4.dp, pressedElevation = 2.dp)) { Text("Cancel") }
             }
         )
     }
@@ -339,7 +340,7 @@ fun HomeScreen(
                                 text = ocrProgressState!!,
                                 style = MaterialTheme.typography.bodyMedium,
                                 fontWeight = FontWeight.Medium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                color = Color.White
                             )
                         }
                     } else if (renameStepActive) {
@@ -347,7 +348,7 @@ fun HomeScreen(
                             Text(
                                 text = "Give your scanned document a descriptive name so it's easy to find in the list.",
                                 style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                color = Color.White
                             )
                             
                             OutlinedTextField(
@@ -387,7 +388,7 @@ fun HomeScreen(
                                     Icon(
                                         imageVector = Icons.Default.Info,
                                         contentDescription = "Format Info",
-                                        tint = MaterialTheme.colorScheme.secondary,
+                                        tint = Color.White,
                                         modifier = Modifier.size(16.dp)
                                     )
                                     Text(
@@ -475,7 +476,7 @@ fun HomeScreen(
                         Text(
                             text = "Choose the file format for your scanned document:",
                             style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            color = Color.White
                         )
                         
                         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -507,7 +508,7 @@ fun HomeScreen(
                                         Text(
                                             text = "Best for sharing as a single multi-page file.",
                                             style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            color = Color.White
                                         )
                                     }
                                 }
@@ -541,7 +542,7 @@ fun HomeScreen(
                                         Text(
                                             text = "Saves each page as an optimized high-quality image.",
                                             style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            color = Color.White
                                         )
                                     }
                                 }
@@ -575,7 +576,7 @@ fun HomeScreen(
                                         Text(
                                             text = "Extracts editable text using high-accuracy OCR.",
                                             style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            color = Color.White
                                         )
                                     }
                                 }
@@ -601,7 +602,7 @@ fun HomeScreen(
                                     Text(
                                         text = "Make text in the PDF selectable and searchable.",
                                         style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        color = Color.White
                                     )
                                 }
                                 Switch(
@@ -624,7 +625,7 @@ fun HomeScreen(
                                 Icon(
                                     imageVector = Icons.Default.Bolt,
                                     contentDescription = "Optimize",
-                                    tint = MaterialTheme.colorScheme.primary,
+                                    tint = Color.White,
                                     modifier = Modifier.size(16.dp)
                                 )
                                 Text(
@@ -687,10 +688,10 @@ fun HomeScreen(
             dismissButton = {
                 if (ocrProgressState == null) {
                     if (renameStepActive) {
-                        TextButton(
+                        Button(
                             onClick = {
                                 renameStepActive = false
-                            }
+                            }, colors = ButtonDefaults.filledTonalButtonColors(), elevation = ButtonDefaults.buttonElevation(defaultElevation = 4.dp, pressedElevation = 2.dp)
                         ) {
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
@@ -705,12 +706,12 @@ fun HomeScreen(
                             }
                         }
                     } else {
-                        TextButton(
+                        Button(
                             onClick = {
                                 showFormatSelectionScreen = false
                                 scannedImageUris = null
                                 isIdCardScan = false
-                            }
+                            }, colors = ButtonDefaults.filledTonalButtonColors(), elevation = ButtonDefaults.buttonElevation(defaultElevation = 4.dp, pressedElevation = 2.dp)
                         ) {
                             Text("Cancel")
                         }
@@ -881,7 +882,7 @@ fun HomeScreen(
                 }
             },
             dismissButton = {
-                TextButton(onClick = { showIdCardGuideDialog = false }) {
+                Button(onClick = { showIdCardGuideDialog = false }, colors = ButtonDefaults.filledTonalButtonColors(), elevation = ButtonDefaults.buttonElevation(defaultElevation = 4.dp, pressedElevation = 2.dp)) {
                     Text("Cancel")
                 }
             }
@@ -917,7 +918,7 @@ fun HomeScreen(
                         Text("Scan Document (Camera)")
                     }
                     
-                    OutlinedButton(
+                    Button(
                         modifier = Modifier.fillMaxWidth(),
                         onClick = {
                             showExtractTextOptionsDialog = false
@@ -929,7 +930,7 @@ fun HomeScreen(
                         Text("Choose from Gallery")
                     }
                     
-                    TextButton(
+                    Button(
                         modifier = Modifier.fillMaxWidth(),
                         onClick = { showExtractTextOptionsDialog = false }
                     ) {
@@ -969,7 +970,7 @@ fun HomeScreen(
                         Text("Scan Table (Camera)")
                     }
                     
-                    OutlinedButton(
+                    Button(
                         modifier = Modifier.fillMaxWidth(),
                         onClick = {
                             showTableScanOptionsDialog = false
@@ -981,7 +982,7 @@ fun HomeScreen(
                         Text("Choose from Gallery")
                     }
                     
-                    TextButton(
+                    Button(
                         modifier = Modifier.fillMaxWidth(),
                         onClick = { showTableScanOptionsDialog = false }
                     ) {
@@ -1003,6 +1004,7 @@ fun HomeScreen(
         floatingActionButton = {
             if (currentTab == "Home") {
                 FloatingActionButton(
+                    elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 8.dp, pressedElevation = 4.dp),
                     onClick = {
                         val activity = generateSequence(context) { (it as? android.content.ContextWrapper)?.baseContext }.filterIsInstance<Activity>().firstOrNull()
                         if (activity != null) {
@@ -1051,8 +1053,9 @@ fun HomeScreen(
                                 .weight(1f)
                                 .height(96.dp),
                             colors = CardDefaults.cardColors(
-                                containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
+                                containerColor = Color(0xFF0D47A1), contentColor = Color.White
                             ),
+                            elevation = CardDefaults.cardElevation(defaultElevation = 8.dp, pressedElevation = 2.dp),
                             shape = RoundedCornerShape(16.dp)
                         ) {
                             Column(
@@ -1065,7 +1068,7 @@ fun HomeScreen(
                                 Icon(
                                     imageVector = Icons.Default.CreditCard,
                                     contentDescription = "ID Card Scan",
-                                    tint = MaterialTheme.colorScheme.primary,
+                                    tint = Color.White,
                                     modifier = Modifier.size(28.dp)
                                 )
                                 Spacer(modifier = Modifier.height(6.dp))
@@ -1073,7 +1076,7 @@ fun HomeScreen(
                                     text = "ID Card Scan",
                                     style = MaterialTheme.typography.labelLarge,
                                     fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                    color = Color.White,
                                     maxLines = 1
                                 )
                             }
@@ -1086,8 +1089,9 @@ fun HomeScreen(
                                 .weight(1f)
                                 .height(96.dp),
                             colors = CardDefaults.cardColors(
-                                containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f)
+                                containerColor = Color(0xFF0D47A1), contentColor = Color.White
                             ),
+                            elevation = CardDefaults.cardElevation(defaultElevation = 8.dp, pressedElevation = 2.dp),
                             shape = RoundedCornerShape(16.dp)
                         ) {
                             Column(
@@ -1100,7 +1104,7 @@ fun HomeScreen(
                                 Icon(
                                     imageVector = Icons.Default.Description,
                                     contentDescription = "Extract Text",
-                                    tint = MaterialTheme.colorScheme.secondary,
+                                    tint = Color.White,
                                     modifier = Modifier.size(28.dp)
                                 )
                                 Spacer(modifier = Modifier.height(6.dp))
@@ -1108,7 +1112,7 @@ fun HomeScreen(
                                     text = "Extract Text",
                                     style = MaterialTheme.typography.labelLarge,
                                     fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.onSecondaryContainer,
+                                    color = Color.White,
                                     maxLines = 1
                                 )
                             }
@@ -1126,8 +1130,9 @@ fun HomeScreen(
                                 .weight(1f)
                                 .height(96.dp),
                             colors = CardDefaults.cardColors(
-                                containerColor = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.5f)
+                                containerColor = Color(0xFF0D47A1), contentColor = Color.White
                             ),
+                            elevation = CardDefaults.cardElevation(defaultElevation = 8.dp, pressedElevation = 2.dp),
                             shape = RoundedCornerShape(16.dp)
                         ) {
                             Column(
@@ -1140,7 +1145,7 @@ fun HomeScreen(
                                 Icon(
                                     imageVector = Icons.Default.InsertDriveFile,
                                     contentDescription = "PDF to Word",
-                                    tint = MaterialTheme.colorScheme.tertiary,
+                                    tint = Color.White,
                                     modifier = Modifier.size(28.dp)
                                 )
                                 Spacer(modifier = Modifier.height(6.dp))
@@ -1148,7 +1153,7 @@ fun HomeScreen(
                                     text = "PDF to Word",
                                     style = MaterialTheme.typography.labelLarge,
                                     fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.onTertiaryContainer,
+                                    color = Color.White,
                                     maxLines = 1
                                 )
                             }
@@ -1161,8 +1166,9 @@ fun HomeScreen(
                                 .weight(1f)
                                 .height(96.dp),
                             colors = CardDefaults.cardColors(
-                                containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                                containerColor = Color(0xFF0D47A1), contentColor = Color.White
                             ),
+                            elevation = CardDefaults.cardElevation(defaultElevation = 8.dp, pressedElevation = 2.dp),
                             shape = RoundedCornerShape(16.dp)
                         ) {
                             Column(
@@ -1175,7 +1181,7 @@ fun HomeScreen(
                                 Icon(
                                     imageVector = Icons.Default.GridOn,
                                     contentDescription = "Scan Table",
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    tint = Color.White,
                                     modifier = Modifier.size(28.dp)
                                 )
                                 Spacer(modifier = Modifier.height(6.dp))
@@ -1183,7 +1189,7 @@ fun HomeScreen(
                                     text = "Scan Table",
                                     style = MaterialTheme.typography.labelLarge,
                                     fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    color = Color.White,
                                     maxLines = 1
                                 )
                             }
@@ -1227,22 +1233,22 @@ fun HomeScreen(
                     text = headerText,
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = Color.White,
                     letterSpacing = 1.sp
                 )
                 if (selectedCategory == "Folders") {
                     IconButton(onClick = { showCreateFolderDialog = true }, modifier = Modifier.size(24.dp)) {
-                        Icon(Icons.Default.Add, contentDescription = "Create Folder", tint = MaterialTheme.colorScheme.primary)
+                        Icon(Icons.Default.Add, contentDescription = "Create Folder", tint = Color.White)
                     }
                 } else if (selectedCategory.startsWith("Folder_")) {
                     IconButton(onClick = { selectedCategory = "Folders" }, modifier = Modifier.size(24.dp)) {
-                        Icon(Icons.Default.Close, contentDescription = "Close Folder", tint = MaterialTheme.colorScheme.primary)
+                        Icon(Icons.Default.Close, contentDescription = "Close Folder", tint = Color.White)
                     }
                 } else {
                     Icon(
                         Icons.AutoMirrored.Filled.ArrowForwardIos,
                         contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        tint = Color.White,
                         modifier = Modifier.size(12.dp)
                     )
                 }
@@ -1252,7 +1258,7 @@ fun HomeScreen(
             if (selectedCategory == "Folders") {
                 if (folders.isEmpty()) {
                     Box(modifier = Modifier.fillMaxSize().padding(bottom = 80.dp), contentAlignment = Alignment.Center) {
-                        Text("No folders yet", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text("No folders yet", color = Color.White)
                     }
                 } else {
                     LazyVerticalGrid(
@@ -1291,7 +1297,7 @@ fun HomeScreen(
                             Spacer(modifier = Modifier.height(16.dp))
                             Text(
                                 "No documents found",
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                color = Color.White
                             )
                         }
                     }
@@ -1401,7 +1407,7 @@ fun FolderItem(
             .fillMaxWidth()
             .aspectRatio(1f)
             .clickable(onClick = onClick),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+        colors = CardDefaults.cardColors(containerColor = Color(0xFF0D47A1), contentColor = Color.White),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
         Column(
@@ -1409,7 +1415,7 @@ fun FolderItem(
             verticalArrangement = Arrangement.SpaceBetween
         ) {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Icon(Icons.Default.Folder, contentDescription = "Folder", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(48.dp))
+                Icon(Icons.Default.Folder, contentDescription = "Folder", tint = Color.White, modifier = Modifier.size(48.dp))
                 Box {
                     IconButton(onClick = { showMenu = true }, modifier = Modifier.size(24.dp)) {
                         Icon(Icons.Default.MoreVert, contentDescription = null)
@@ -1434,7 +1440,7 @@ fun FolderItem(
             }
             Column {
                 Text(text = folder.name, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text(text = "$docCount documents", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(text = "$docCount documents", fontSize = 12.sp, color = Color.White)
             }
         }
     }
@@ -1505,7 +1511,7 @@ fun DocumentListItem(
             val sizeMb = if (document.sizeBytes > 0) String.format(Locale.US, "%.1f MB", document.sizeBytes / 1024.0 / 1024.0) else "Unknown"
             Text(
                 text = "$dateStr • $sizeMb",
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                color = Color.White,
                 fontSize = 12.sp
             )
         }
@@ -1516,7 +1522,7 @@ fun DocumentListItem(
                 Icon(
                     Icons.Default.MoreVert,
                     contentDescription = "Options",
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    tint = Color.White
                 )
             }
             DropdownMenu(
@@ -1574,8 +1580,13 @@ fun BottomNavigationBar(currentTab: String, onTabSelected: (String) -> Unit, onN
         modifier = Modifier
             .fillMaxWidth()
             .height(80.dp)
-            .background(MaterialTheme.colorScheme.surface)
-            .border(1.dp, MaterialTheme.colorScheme.outlineVariant)
+            .shadow(elevation = 16.dp, shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp))
+            .clip(RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp))
+            .background(
+                brush = androidx.compose.ui.graphics.Brush.verticalGradient(
+                    colors = listOf(Color(0xFF1976D2), Color(0xFF0D47A1))
+                )
+            )
             .padding(bottom = 8.dp),
         horizontalArrangement = Arrangement.SpaceAround,
         verticalAlignment = Alignment.CenterVertically
@@ -1594,6 +1605,10 @@ fun BottomNavigationBar(currentTab: String, onTabSelected: (String) -> Unit, onN
 
 @Composable
 fun BottomNavItem(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, isSelected: Boolean, onClick: () -> Unit = {}) {
+    val selectedColor = Color(0xFFFFC107) // Gold/Amber
+    val unselectedColor = Color.White.copy(alpha = 0.7f)
+    val currentColor = if (isSelected) selectedColor else unselectedColor
+
     Column(
         modifier = Modifier
             .clickable(onClick = onClick)
@@ -1606,7 +1621,9 @@ fun BottomNavItem(icon: androidx.compose.ui.graphics.vector.ImageVector, label: 
                 modifier = Modifier
                     .width(48.dp)
                     .height(32.dp)
-                    .background(MaterialTheme.colorScheme.primaryContainer, RoundedCornerShape(16.dp)),
+                    .shadow(elevation = 6.dp, shape = RoundedCornerShape(16.dp), ambientColor = Color.Black, spotColor = Color.Black)
+                    .background(Color(0x40FFFFFF), RoundedCornerShape(16.dp))
+                    .border(1.dp, Color(0x60FFFFFF), RoundedCornerShape(16.dp)),
                 contentAlignment = Alignment.Center
             ) {
                 if (label == "OCR") {
@@ -1614,10 +1631,10 @@ fun BottomNavItem(icon: androidx.compose.ui.graphics.vector.ImageVector, label: 
                         text = "OCR",
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary
+                        color = currentColor
                     )
                 } else {
-                    Icon(icon, contentDescription = label, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
+                    Icon(icon, contentDescription = label, tint = currentColor, modifier = Modifier.size(20.dp))
                 }
             }
         } else {
@@ -1632,10 +1649,10 @@ fun BottomNavItem(icon: androidx.compose.ui.graphics.vector.ImageVector, label: 
                         text = "OCR",
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)
+                        color = currentColor
                     )
                 } else {
-                    Icon(icon, contentDescription = label, tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f), modifier = Modifier.size(20.dp))
+                    Icon(icon, contentDescription = label, tint = currentColor, modifier = Modifier.size(20.dp))
                 }
             }
         }
@@ -1643,8 +1660,8 @@ fun BottomNavItem(icon: androidx.compose.ui.graphics.vector.ImageVector, label: 
         Text(
             text = label,
             fontSize = 10.sp,
-            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-            color = if (isSelected) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)
+            fontWeight = if (isSelected) FontWeight.ExtraBold else FontWeight.Medium,
+            color = currentColor
         )
     }
 }
