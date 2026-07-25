@@ -1,8 +1,12 @@
 package com.example.ui.screens
 
 import android.app.Activity
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.widget.Toast
 import java.util.UUID
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -68,6 +72,12 @@ fun HomeScreen(
     var isIdCardScan by remember { mutableStateOf(false) }
     var isExtractTextFromCamera by remember { mutableStateOf(false) }
     var isTableScanFromCamera by remember { mutableStateOf(false) }
+    var isMagicScanActive by remember { mutableStateOf(false) }
+
+    var magicScanResultState by remember { mutableStateOf<com.example.ui.ai.MagicScanResult?>(null) }
+    var duplicateCheckResultState by remember { mutableStateOf<com.example.ui.ai.DuplicateCheckResult?>(null) }
+    var showSignatureDialog by remember { mutableStateOf(false) }
+    var signatureSourceBitmap by remember { mutableStateOf<Bitmap?>(null) }
     
     var showIdCardGuideDialog by remember { mutableStateOf(false) }
     var showExtractTextOptionsDialog by remember { mutableStateOf(false) }
@@ -769,6 +779,36 @@ fun HomeScreen(
                         viewModel.ocrProgress.value = null
                         currentTab = "OCR"
                     }
+                } else if (isMagicScanActive) {
+                    isMagicScanActive = false
+                    val firstUri = cachedUris.firstOrNull()
+                    if (firstUri != null) {
+                        coroutineScope.launch {
+                            viewModel.ocrProgress.value = "Running One-Tap Magic Scan AI..."
+                            try {
+                                val inputBmp = BitmapFactory.decodeStream(context.contentResolver.openInputStream(firstUri))
+                                if (inputBmp != null) {
+                                    val ocrText = viewModel.extractTextFromUri(context, firstUri)
+                                    val magicResult = com.example.ui.ai.AIMagicScan.processMagicScan(
+                                        context = context,
+                                        inputBitmap = inputBmp,
+                                        ocrText = ocrText
+                                    )
+                                    val dupResult = com.example.ui.ai.AIDuplicateDetector.checkDuplicate(
+                                        newBitmap = magicResult.enhancedBitmap,
+                                        existingDocuments = documents
+                                    )
+                                    magicScanResultState = magicResult
+                                    duplicateCheckResultState = dupResult
+                                }
+                            } catch (e: Exception) {
+                                e.printStackTrace()
+                                Toast.makeText(context, "Magic Scan error", Toast.LENGTH_SHORT).show()
+                            } finally {
+                                viewModel.ocrProgress.value = null
+                            }
+                        }
+                    }
                 } else if (isTableScanFromCamera) {
                     isTableScanFromCamera = false
                     val firstUri = cachedUris.firstOrNull()
@@ -1038,6 +1078,64 @@ fun HomeScreen(
                 )
                 Spacer(modifier = Modifier.height(12.dp))
                 
+                // Hero Magic Scan Card
+                Card(
+                    onClick = {
+                        isMagicScanActive = true
+                        val activity = generateSequence(context) { (it as? android.content.ContextWrapper)?.baseContext }.filterIsInstance<Activity>().firstOrNull()
+                        if (activity != null) {
+                            ScannerHelper.startScan(activity, scannerLauncher)
+                        }
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(110.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.primaryContainer
+                    ),
+                    shape = RoundedCornerShape(20.dp),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 6.dp)
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                                Text(
+                                    text = "Magic Scan (One-Tap AI)",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = "Auto crop, deskew, shadow & finger removal, blur check & smart naming in 1 tap!",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
+                            )
+                        }
+                        Surface(
+                            shape = CircleShape,
+                            color = MaterialTheme.colorScheme.primary
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.PlayArrow,
+                                contentDescription = "Start Magic Scan",
+                                tint = Color.White,
+                                modifier = Modifier.padding(12.dp).size(24.dp)
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
                 // 2x2 Feature Grid
                 Column(
                     verticalArrangement = Arrangement.spacedBy(10.dp)
@@ -1361,6 +1459,92 @@ fun HomeScreen(
             onDismiss = {
                 editingFile = null
                 editingPageIndex = -1
+            }
+        )
+    }
+
+    if (magicScanResultState != null) {
+        com.example.ui.components.MagicScanComparisonDialog(
+            magicResult = magicScanResultState!!,
+            duplicateMatchedDoc = duplicateCheckResultState?.matchedDocument,
+            duplicateSimilarity = duplicateCheckResultState?.similarityPercentage ?: 0,
+            onDismiss = {
+                magicScanResultState = null
+                duplicateCheckResultState = null
+            },
+            onRetake = {
+                magicScanResultState = null
+                duplicateCheckResultState = null
+                isMagicScanActive = true
+                val activity = generateSequence(context) { (it as? android.content.ContextWrapper)?.baseContext }.filterIsInstance<Activity>().firstOrNull()
+                if (activity != null) {
+                    ScannerHelper.startScan(activity, scannerLauncher)
+                }
+            },
+            onSave = { finalBitmap, fileName, preset, password, dupAction ->
+                if (dupAction == "SKIP") {
+                    magicScanResultState = null
+                    duplicateCheckResultState = null
+                    return@MagicScanComparisonDialog
+                }
+
+                coroutineScope.launch(Dispatchers.IO) {
+                    val app = context.applicationContext as android.app.Application
+                    val docId = UUID.randomUUID().toString()
+
+                    if (dupAction == "REPLACE" && duplicateCheckResultState?.matchedDocument != null) {
+                        viewModel.deleteDocument(duplicateCheckResultState!!.matchedDocument!!)
+                    }
+
+                    val imgFile = File(app.filesDir, "magic_img_${docId}.jpg")
+                    imgFile.outputStream().use { out ->
+                        finalBitmap.compress(Bitmap.CompressFormat.JPEG, preset.jpegQuality, out)
+                    }
+
+                    val pdfFile = File(app.filesDir, "magic_pdf_${docId}.pdf")
+                    com.example.ui.ai.AIPdfCompressor.generateOptimizedPdf(
+                        context = context,
+                        imagePaths = listOf(imgFile.absolutePath),
+                        outputFile = pdfFile,
+                        preset = preset
+                    )
+
+                    if (password != null && password.isNotBlank()) {
+                        val encryptedFile = File(app.filesDir, "magic_pdf_${docId}_enc.pdf")
+                        val encSuccess = com.example.ui.ai.AIPdfPasswordProtection.encryptPdf(pdfFile, encryptedFile, password)
+                        if (encSuccess) {
+                            pdfFile.delete()
+                            encryptedFile.renameTo(pdfFile)
+                        }
+                    }
+
+                    val newDoc = com.example.data.DocumentEntity(
+                        id = docId,
+                        name = fileName,
+                        dateCreated = System.currentTimeMillis(),
+                        imagePaths = imgFile.absolutePath,
+                        pdfPath = pdfFile.absolutePath,
+                        ocrText = null
+                    )
+
+                    viewModel.insertDocument(newDoc)
+
+                    withContext(Dispatchers.Main) {
+                        magicScanResultState = null
+                        duplicateCheckResultState = null
+                        Toast.makeText(context, "Saved '$fileName' successfully!", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            }
+        )
+    }
+
+    if (showSignatureDialog && signatureSourceBitmap != null) {
+        com.example.ui.components.SignatureExtractionDialog(
+            documentBitmap = signatureSourceBitmap!!,
+            onDismiss = {
+                showSignatureDialog = false
+                signatureSourceBitmap = null
             }
         )
     }

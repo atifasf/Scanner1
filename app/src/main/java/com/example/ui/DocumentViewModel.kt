@@ -194,21 +194,22 @@ class DocumentViewModel(application: Application) : AndroidViewModel(application
 
                     if (originalBitmap != null) {
                         val isText = isTextDocument(originalBitmap)
-                        val quality = if (isText) 65 else 80
+                        val quality = if (isText) 80 else 90
                         
                         // Resize if still larger than maxDim to be safe
                         val resized = resizeBitmapIfNeeded(originalBitmap, maxDim)
                         
-                        // Enhance
-                        val enhanced = com.example.ui.ImageEnhancer.enhanceBitmap(resized)
+                        // Apply AI Boundary Detection, Perspective Correction, Text Line Auto-Deskew & CamScanner Whitening
+                        ocrProgress.value = "AI Auto-Deskewing & Whitening Page ${index + 1}..."
+                        val enhanced = com.example.ui.AutoDeskewEnhancer.autoProcessDocument(app, resized)
                         
                         file.outputStream().use { output ->
                             enhanced.compress(Bitmap.CompressFormat.JPEG, quality, output)
                         }
                         
                         // Recycle to free memory
-                        if (resized != originalBitmap) resized.recycle()
-                        originalBitmap.recycle()
+                        if (resized != originalBitmap && resized != enhanced) resized.recycle()
+                        if (originalBitmap != enhanced) originalBitmap.recycle()
                         enhanced.recycle()
                     } else {
                         app.contentResolver.openInputStream(uri)?.use { input ->
@@ -534,6 +535,16 @@ class DocumentViewModel(application: Application) : AndroidViewModel(application
                 onComplete(doc)
             }
         }
+    }
+
+    fun insertDocument(doc: DocumentEntity) {
+        viewModelScope.launch {
+            repository.insertDocument(doc)
+        }
+    }
+
+    fun deleteDocument(doc: DocumentEntity) {
+        deletePermanently(doc)
     }
 
     fun updateDocument(doc: DocumentEntity) {
@@ -883,6 +894,21 @@ class DocumentViewModel(application: Application) : AndroidViewModel(application
             } catch (e: Exception) {
                 e.printStackTrace()
                 kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) { onFailure(e.localizedMessage ?: "Conversion failed.") }
+            }
+        }
+    }
+
+    fun updateDocumentImage(imageFile: File, newBitmap: Bitmap, onComplete: () -> Unit) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                imageFile.outputStream().use { output ->
+                    newBitmap.compress(Bitmap.CompressFormat.JPEG, 90, output)
+                }
+                withContext(Dispatchers.Main) {
+                    onComplete()
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
             }
         }
     }

@@ -44,6 +44,9 @@ fun DocumentDetailScreen(
     var isOcrLoading by remember { mutableStateOf(false) }
     var isTableScanLoading by remember { mutableStateOf(false) }
     var editingFile by remember { mutableStateOf<File?>(null) }
+    var fineTuneFile by remember { mutableStateOf<File?>(null) }
+    var signatureExtractBitmap by remember { mutableStateOf<android.graphics.Bitmap?>(null) }
+    var signatureManagerFile by remember { mutableStateOf<File?>(null) }
     var imageRefreshTrigger by remember { mutableStateOf(0) }
 
     LaunchedEffect(documentId) {
@@ -121,23 +124,60 @@ fun DocumentDetailScreen(
                             modifier = Modifier.fillMaxWidth().heightIn(max = 400.dp)
                         )
                         
-                        FilledIconButton(
-                            onClick = {
-                                editingFile = File(imagePaths.first())
-                            },
-                            colors = IconButtonDefaults.filledIconButtonColors(
-                                containerColor = MaterialTheme.colorScheme.primaryContainer,
-                                contentColor = MaterialTheme.colorScheme.onPrimaryContainer
-                            ),
+                        Row(
                             modifier = Modifier
                                 .align(Alignment.BottomEnd)
-                                .padding(16.dp)
-                                .size(48.dp)
+                                .padding(16.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            Icon(
-                                imageVector = Icons.Default.Gesture,
-                                contentDescription = "Erase & Clean"
-                            )
+                            FilledTonalButton(
+                                onClick = {
+                                    val path = imagePaths.firstOrNull()
+                                    if (path != null) {
+                                        signatureManagerFile = File(path)
+                                    }
+                                },
+                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Gesture,
+                                    contentDescription = "Signature Tools",
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("Signature")
+                            }
+
+                            FilledTonalButton(
+                                onClick = {
+                                    fineTuneFile = File(imagePaths.first())
+                                },
+                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.AutoFixHigh,
+                                    contentDescription = "AI Deskew",
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("AI Deskew")
+                            }
+
+                            FilledIconButton(
+                                onClick = {
+                                    editingFile = File(imagePaths.first())
+                                },
+                                colors = IconButtonDefaults.filledIconButtonColors(
+                                    containerColor = MaterialTheme.colorScheme.primaryContainer,
+                                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                                ),
+                                modifier = Modifier.size(48.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Gesture,
+                                    contentDescription = "Erase & Clean"
+                                )
+                            }
                         }
                     }
                 }
@@ -301,6 +341,37 @@ fun DocumentDetailScreen(
             onDismiss = {
                 editingFile = null
             }
+        )
+    }
+
+    if (fineTuneFile != null) {
+        com.example.ui.components.AutoDeskewFineTuneDialog(
+            imageFile = fineTuneFile!!,
+            onDismiss = { fineTuneFile = null },
+            onApply = { newBitmap ->
+                viewModel.updateDocumentImage(fineTuneFile!!, newBitmap) {
+                    imageRefreshTrigger++
+                    fineTuneFile = null
+                    Toast.makeText(context, "Document deskewed & enhanced successfully!", Toast.LENGTH_SHORT).show()
+                }
+            }
+        )
+    }
+
+    if (signatureManagerFile != null) {
+        com.example.ui.components.SignatureManagerDialog(
+            documentFile = signatureManagerFile!!,
+            onDismiss = { signatureManagerFile = null },
+            onDocumentUpdated = {
+                imageRefreshTrigger++
+            }
+        )
+    }
+
+    if (signatureExtractBitmap != null) {
+        com.example.ui.components.SignatureExtractionDialog(
+            documentBitmap = signatureExtractBitmap!!,
+            onDismiss = { signatureExtractBitmap = null }
         )
     }
 }
