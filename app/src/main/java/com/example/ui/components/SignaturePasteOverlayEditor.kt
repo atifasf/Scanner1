@@ -37,6 +37,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import com.example.ui.ai.SavedSignature
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -97,8 +99,13 @@ fun SignaturePasteOverlayEditor(
         }
     }
 
-    Scaffold(
-        topBar = {
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)
+    ) {
+        Scaffold(
+            modifier = Modifier.windowInsetsPadding(WindowInsets.safeDrawing),
+            topBar = {
             TopAppBar(
                 title = {
                     Column {
@@ -323,5 +330,6 @@ fun SignaturePasteOverlayEditor(
                 }
             }
         }
+    }
     }
 }

@@ -234,17 +234,25 @@ fun ToolsTab(viewModel: DocumentViewModel, padding: PaddingValues, context: Cont
             onDismiss = { selectedToolFile = null },
             onApply = { newBitmap ->
                 coroutineScope.launch(Dispatchers.IO) {
-                    val uriList = listOf(Uri.fromFile(selectedToolFile))
-                    viewModel.saveScannedDocumentWithFormat(
-                        imageUris = uriList,
-                        format = DocumentViewModel.OutputFormat.PDF,
-                        isSearchablePdf = false,
-                        customName = "Deskewed_Doc_${System.currentTimeMillis() % 10000}",
-                        onComplete = {
-                            selectedToolFile = null
-                            android.widget.Toast.makeText(context, "Deskewed document saved!", android.widget.Toast.LENGTH_SHORT).show()
+                    try {
+                        val resultFile = File(context.cacheDir, "deskewed_${System.currentTimeMillis()}.jpg")
+                        resultFile.outputStream().use { out ->
+                            newBitmap.compress(Bitmap.CompressFormat.JPEG, 95, out)
                         }
-                    )
+                        val uriList = listOf(Uri.fromFile(resultFile))
+                        viewModel.saveScannedDocumentWithFormat(
+                            imageUris = uriList,
+                            format = DocumentViewModel.OutputFormat.PDF,
+                            isSearchablePdf = false,
+                            customName = "Deskewed_Doc_${System.currentTimeMillis() % 10000}",
+                            onComplete = {
+                                selectedToolFile = null
+                                android.widget.Toast.makeText(context, "Deskewed document saved!", android.widget.Toast.LENGTH_SHORT).show()
+                            }
+                        )
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                    }
                 }
             }
         )

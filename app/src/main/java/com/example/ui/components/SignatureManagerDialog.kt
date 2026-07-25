@@ -6,7 +6,6 @@ import android.widget.Toast
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -28,7 +27,6 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.example.ui.ai.AISignatureExtractor
-import com.example.ui.ai.DetectedSignatureRegion
 import com.example.ui.ai.SavedSignature
 import com.example.ui.ai.SignatureLibraryManager
 import kotlinx.coroutines.Dispatchers
@@ -46,31 +44,24 @@ fun SignatureManagerDialog(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
-    var activeTab by remember { mutableIntStateOf(0) } // 0: Save Signature with stamp, 1: Paste Signature
+    var activeTab by remember { mutableIntStateOf(0) }
     var documentBitmap by remember { mutableStateOf<Bitmap?>(null) }
-    var detectedRegions by remember { mutableStateOf<List<DetectedSignatureRegion>>(emptyList()) }
-    var selectedRegionIndex by remember { mutableIntStateOf(0) }
-    var isDetecting by remember { mutableStateOf(true) }
+    
+    // Extracted transparent signature state
+    var extractedBitmap by remember { mutableStateOf<Bitmap?>(null) }
 
     var customSigName by remember { mutableStateOf("") }
     var showLibraryDialog by remember { mutableStateOf(false) }
     var selectedSignatureForPaste by remember { mutableStateOf<SavedSignature?>(null) }
 
-    // Load document bitmap & run AI multi-signature detection
+    // Load document bitmap
     LaunchedEffect(documentFile) {
         withContext(Dispatchers.IO) {
             try {
-                val opts = BitmapFactory.Options().apply { inPreferredConfig = Bitmap.Config.ARGB_8888 }
-                val bmp = BitmapFactory.decodeFile(documentFile.absolutePath, opts)
-                if (bmp != null) {
-                    documentBitmap = bmp
-                    val regions = AISignatureExtractor.detectMultipleSignatureRegions(bmp)
-                    detectedRegions = regions
-                }
+                val bmp = BitmapFactory.decodeFile(documentFile.absolutePath)
+                documentBitmap = bmp
             } catch (e: Exception) {
                 e.printStackTrace()
-            } finally {
-                isDetecting = false
             }
         }
     }
@@ -91,11 +82,12 @@ fun SignatureManagerDialog(
 
     Dialog(
         onDismissRequest = onDismiss,
-        properties = DialogProperties(usePlatformDefaultWidth = false)
+        properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)
     ) {
         Surface(
             modifier = Modifier
                 .fillMaxSize()
+                .windowInsetsPadding(WindowInsets.safeDrawing)
                 .padding(12.dp),
             shape = RoundedCornerShape(24.dp),
             color = MaterialTheme.colorScheme.surface,
@@ -141,7 +133,7 @@ fun SignatureManagerDialog(
 
                 Spacer(modifier = Modifier.height(8.dp))
 
-                // Navigation Tabs: Save Signature with stamp vs Paste Signature
+                // Navigation Tabs
                 TabRow(selectedTabIndex = activeTab) {
                     Tab(
                         selected = activeTab == 0,
@@ -149,7 +141,7 @@ fun SignatureManagerDialog(
                         text = {
                             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                                 Icon(Icons.Default.AutoAwesome, contentDescription = null, modifier = Modifier.size(16.dp))
-                                Text("Save Signature & Stamp")
+                                Text("Save Signature")
                             }
                         }
                     )
@@ -168,132 +160,114 @@ fun SignatureManagerDialog(
                 Spacer(modifier = Modifier.height(12.dp))
 
                 if (activeTab == 0) {
-                    // TAB 0: Save Signature with Stamp (AI Extraction)
+                    // TAB 0: Save Signature (Manual Crop)
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            "AI automatically detects handwritten signatures and official stamps on the page, removes paper background, and creates a transparent PNG.",
+                            "Position the box around your signature. You can drag edges, zoom, and pan for a precise crop.",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
 
                         Spacer(modifier = Modifier.height(10.dp))
 
-                        if (isDetecting) {
-                            Box(
+                        if (extractedBitmap == null) {
+                            // Show Crop Editor
+                            Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
+                                if (documentBitmap != null) {
+                                    SignatureCropEditor(
+                                        documentBitmap = documentBitmap!!,
+                                        onExtract = { cropRect ->
+                                            scope.launch {
+                                                extractedBitmap = AISignatureExtractor.extractTransparentSignature(documentBitmap!!, cropRect)
+                                            }
+                                        }
+                                    )
+                                } else {
+                                    CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
+                                }
+                            }
+                        } else {
+                            // Show Extracted Preview
+                            Card(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .weight(1f),
-                                contentAlignment = Alignment.Center
+                                colors = CardDefaults.cardColors(
+                                    containerColor = MaterialTheme.colorScheme.surfaceVariant
+                                )
                             ) {
-                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                    CircularProgressIndicator()
-                                    Spacer(modifier = Modifier.height(12.dp))
-                                    Text("Detecting signatures & stamps with AI...")
-                                }
-                            }
-                        } else if (detectedRegions.isNotEmpty()) {
-                            // Region Selector Choice Chips
-                            Text(
-                                "Detected Regions (${detectedRegions.size} found):",
-                                style = MaterialTheme.typography.labelMedium,
-                                fontWeight = FontWeight.Bold
-                            )
-                            Spacer(modifier = Modifier.height(6.dp))
-
-                            LazyRow(
-                                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                items(detectedRegions.indices.toList()) { idx ->
-                                    val region = detectedRegions[idx]
-                                    FilterChip(
-                                        selected = selectedRegionIndex == idx,
-                                        onClick = { selectedRegionIndex = idx },
-                                        label = { Text(region.label) },
-                                        leadingIcon = if (selectedRegionIndex == idx) {
-                                            { Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(16.dp)) }
-                                        } else null
+                                Column(
+                                    modifier = Modifier
+                                        .padding(12.dp)
+                                        .fillMaxSize(),
+                                    horizontalAlignment = Alignment.CenterHorizontally
+                                ) {
+                                    Text(
+                                        "Extracted Transparent PNG",
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.Bold
                                     )
+
+                                    Spacer(modifier = Modifier.height(8.dp))
+
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .weight(1f)
+                                            .clip(RoundedCornerShape(12.dp))
+                                            .background(Color.White)
+                                            .border(1.dp, Color.LightGray, RoundedCornerShape(12.dp)),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Image(
+                                            bitmap = extractedBitmap!!.asImageBitmap(),
+                                            contentDescription = "Signature Preview",
+                                            modifier = Modifier
+                                                .fillMaxSize()
+                                                .padding(12.dp),
+                                            contentScale = ContentScale.Fit
+                                        )
+                                    }
                                 }
                             }
 
                             Spacer(modifier = Modifier.height(12.dp))
 
-                            // Selected Transparent Signature Preview
-                            val currentRegion = detectedRegions.getOrNull(selectedRegionIndex)
-                            if (currentRegion != null) {
-                                Card(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .weight(1f),
-                                    colors = CardDefaults.cardColors(
-                                        containerColor = MaterialTheme.colorScheme.surfaceVariant
-                                    )
+                            OutlinedTextField(
+                                value = customSigName,
+                                onValueChange = { customSigName = it },
+                                label = { Text("Signature Name") },
+                                placeholder = { Text("e.g. My Primary Signature") },
+                                singleLine = true,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+
+                            Spacer(modifier = Modifier.height(12.dp))
+
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                                OutlinedButton(
+                                    onClick = { extractedBitmap = null },
+                                    modifier = Modifier.weight(1f)
                                 ) {
-                                    Column(
-                                        modifier = Modifier
-                                            .padding(12.dp)
-                                            .fillMaxSize(),
-                                        horizontalAlignment = Alignment.CenterHorizontally
-                                    ) {
-                                        Text(
-                                            "Extracted Transparent PNG",
-                                            style = MaterialTheme.typography.titleMedium,
-                                            fontWeight = FontWeight.Bold
-                                        )
-
-                                        Spacer(modifier = Modifier.height(8.dp))
-
-                                        Box(
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .weight(1f)
-                                                .clip(RoundedCornerShape(12.dp))
-                                                .background(Color.White)
-                                                .border(1.dp, Color.LightGray, RoundedCornerShape(12.dp)),
-                                            contentAlignment = Alignment.Center
-                                        ) {
-                                            Image(
-                                                bitmap = currentRegion.transparentBitmap.asImageBitmap(),
-                                                contentDescription = "Signature Preview",
-                                                modifier = Modifier
-                                                    .fillMaxSize()
-                                                    .padding(12.dp),
-                                                contentScale = ContentScale.Fit
-                                            )
-                                        }
-                                    }
+                                    Text("Adjust Crop")
                                 }
-
-                                Spacer(modifier = Modifier.height(12.dp))
-
-                                OutlinedTextField(
-                                    value = customSigName,
-                                    onValueChange = { customSigName = it },
-                                    label = { Text("Signature / Stamp Name") },
-                                    placeholder = { Text("e.g. Official Stamp & Signature") },
-                                    singleLine = true,
-                                    modifier = Modifier.fillMaxWidth()
-                                )
-
-                                Spacer(modifier = Modifier.height(12.dp))
-
                                 Button(
                                     onClick = {
                                         val sigName = customSigName.ifBlank { "Signature_${System.currentTimeMillis() % 10000}" }
                                         val saved = SignatureLibraryManager.saveSignature(
                                             context = context,
-                                            bitmap = currentRegion.transparentBitmap,
+                                            bitmap = extractedBitmap!!,
                                             name = sigName
                                         )
                                         Toast.makeText(context, "Saved '${saved.name}' to My Signatures!", Toast.LENGTH_SHORT).show()
+                                        extractedBitmap = null // Reset
                                         activeTab = 1 // Switch to Paste Signature tab
                                     },
-                                    modifier = Modifier.fillMaxWidth()
+                                    modifier = Modifier.weight(1.5f)
                                 ) {
                                     Icon(Icons.Default.Bookmark, contentDescription = null)
                                     Spacer(modifier = Modifier.width(8.dp))
-                                    Text("Save to My Signatures Library")
+                                    Text("Save Signature")
                                 }
                             }
                         }
@@ -301,7 +275,7 @@ fun SignatureManagerDialog(
                 } else {
                     // TAB 1: Paste Signature
                     val savedSignatures = remember { SignatureLibraryManager.getSavedSignatures(context) }
-
+                    
                     if (savedSignatures.isEmpty()) {
                         Box(
                             modifier = Modifier
@@ -378,18 +352,14 @@ fun SignatureManagerDialog(
                                                     )
                                                 }
                                             }
-
                                             Spacer(modifier = Modifier.height(8.dp))
-
                                             Text(
                                                 text = sig.name,
                                                 style = MaterialTheme.typography.labelLarge,
                                                 fontWeight = FontWeight.Bold,
                                                 maxLines = 1
                                             )
-
                                             Spacer(modifier = Modifier.height(6.dp))
-
                                             Button(
                                                 onClick = { selectedSignatureForPaste = sig },
                                                 contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),

@@ -36,7 +36,6 @@ fun MagicScanComparisonDialog(
     duplicateMatchedDoc: DocumentEntity?,
     duplicateSimilarity: Int,
     onDismiss: () -> Unit,
-    onRetake: () -> Unit,
     onSave: (
         finalBitmap: Bitmap,
         fileName: String,
@@ -54,11 +53,12 @@ fun MagicScanComparisonDialog(
 
     Dialog(
         onDismissRequest = onDismiss,
-        properties = DialogProperties(usePlatformDefaultWidth = false)
+        properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)
     ) {
         Surface(
             modifier = Modifier
                 .fillMaxSize()
+                .windowInsetsPadding(WindowInsets.safeDrawing)
                 .padding(12.dp),
             shape = RoundedCornerShape(24.dp),
             color = MaterialTheme.colorScheme.surface,
@@ -161,46 +161,6 @@ fun MagicScanComparisonDialog(
                                 selectedLabelColor = MaterialTheme.colorScheme.onPrimary
                             )
                         )
-                    }
-
-                    // Blur Warning Overlay Banner
-                    if (magicResult.isBlurry) {
-                        Surface(
-                            modifier = Modifier
-                                .align(Alignment.BottomCenter)
-                                .fillMaxWidth()
-                                .padding(12.dp),
-                            shape = RoundedCornerShape(12.dp),
-                            color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.95f)
-                        ) {
-                            Row(
-                                modifier = Modifier.padding(12.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Warning,
-                                    contentDescription = "Blur Warning",
-                                    tint = MaterialTheme.colorScheme.onErrorContainer
-                                )
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(
-                                        text = "Blur Detected!",
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 13.sp,
-                                        color = MaterialTheme.colorScheme.onErrorContainer
-                                    )
-                                    Text(
-                                        text = magicResult.blurMessage,
-                                        fontSize = 11.sp,
-                                        color = MaterialTheme.colorScheme.onErrorContainer
-                                    )
-                                }
-                                TextButton(onClick = onRetake) {
-                                    Text("Retake", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onErrorContainer)
-                                }
-                            }
-                        }
                     }
                 }
 

@@ -32,7 +32,8 @@ object AIMagicScan {
         val warpedAndDeskewed = AutoDeskewEnhancer.autoProcessDocument(
             context = context,
             original = inputBitmap,
-            mode = EnhancementMode.MAGIC_COLOR
+            mode = EnhancementMode.MAGIC_COLOR,
+            skipCrop = false // User requested auto deskew to be fully operational
         )
 
         // Step 2: AI Shadow Removal

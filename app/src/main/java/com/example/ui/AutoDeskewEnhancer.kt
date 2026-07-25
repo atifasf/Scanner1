@@ -61,18 +61,24 @@ object AutoDeskewEnhancer {
     suspend fun autoProcessDocument(
         context: Context,
         original: Bitmap,
-        mode: EnhancementMode = EnhancementMode.MAGIC_COLOR
+        mode: EnhancementMode = EnhancementMode.MAGIC_COLOR,
+        skipCrop: Boolean = false
     ): Bitmap = withContext(Dispatchers.IO) {
         try {
-            // Step 1: Detect document boundary
-            val corners = detectCorners(original)
+            val deskewed: Bitmap
+            var warped = original
 
-            // Step 2: Perspective warp to perfect rectangular page
-            val warped = warpPerspective(original, corners)
+            if (!skipCrop) {
+                // Step 1: Detect document boundary
+                val corners = detectCorners(original)
+
+                // Step 2: Perspective warp to perfect rectangular page
+                warped = warpPerspective(original, corners)
+            }
 
             // Step 3: Text line angle analysis and auto rotation/deskew
             val deskewAngle = detectTextSkewAngle(warped)
-            val deskewed = if (abs(deskewAngle) > 0.4f) {
+            deskewed = if (abs(deskewAngle) > 0.4f) {
                 rotateBitmap(warped, deskewAngle)
             } else {
                 warped

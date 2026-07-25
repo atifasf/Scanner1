@@ -31,12 +31,16 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import java.io.File
 import java.io.FileOutputStream
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 data class EraseStroke(
     val points: List<Offset>, // In Bitmap coordinates
     val strokeWidth: Float    // In Bitmap coordinates
@@ -89,8 +93,13 @@ fun EraserCanvasEditor(
         isLoading = false
     }
     
-    Scaffold(
-        topBar = {
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)
+    ) {
+        Scaffold(
+            modifier = Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing),
+            topBar = {
             TopAppBar(
                 title = { Text("Erase & Clean Tool", fontWeight = FontWeight.Bold) },
                 navigationIcon = {
@@ -526,5 +535,6 @@ fun EraserCanvasEditor(
                 }
             }
         }
+    }
     }
 }

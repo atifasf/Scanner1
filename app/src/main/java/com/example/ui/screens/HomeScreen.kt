@@ -1472,15 +1472,6 @@ fun HomeScreen(
                 magicScanResultState = null
                 duplicateCheckResultState = null
             },
-            onRetake = {
-                magicScanResultState = null
-                duplicateCheckResultState = null
-                isMagicScanActive = true
-                val activity = generateSequence(context) { (it as? android.content.ContextWrapper)?.baseContext }.filterIsInstance<Activity>().firstOrNull()
-                if (activity != null) {
-                    ScannerHelper.startScan(activity, scannerLauncher)
-                }
-            },
             onSave = { finalBitmap, fileName, preset, password, dupAction ->
                 if (dupAction == "SKIP") {
                     magicScanResultState = null
