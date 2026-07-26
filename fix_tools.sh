@@ -1,3 +1,5 @@
+#!/bin/bash
+cat << 'INNER_EOF' > app/src/main/java/com/example/ui/screens/ToolsTab.kt
 package com.example.ui.screens
 
 import android.content.Context
@@ -60,3 +62,4 @@ fun ToolsTab(viewModel: DocumentViewModel, padding: PaddingValues, context: Cont
         }
     }
 }
+INNER_EOF

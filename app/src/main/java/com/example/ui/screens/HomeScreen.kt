@@ -77,14 +77,39 @@ fun HomeScreen(
     var magicScanResultState by remember { mutableStateOf<com.example.ui.ai.MagicScanResult?>(null) }
     var duplicateCheckResultState by remember { mutableStateOf<com.example.ui.ai.DuplicateCheckResult?>(null) }
     var showSignatureDialog by remember { mutableStateOf(false) }
+    val coroutineScope = rememberCoroutineScope()
     var signatureSourceBitmap by remember { mutableStateOf<Bitmap?>(null) }
+    var selectedSigToolFile by remember { mutableStateOf<File?>(null) }
+    var showSignatureLibrary by remember { mutableStateOf(false) }
+    
+    val sigImagePickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        if (uri != null) {
+            coroutineScope.launch(Dispatchers.IO) {
+                try {
+                    val inputStream = context.contentResolver.openInputStream(uri)
+                    val tempFile = File(context.cacheDir, "temp_sig_${UUID.randomUUID()}.jpg")
+                    tempFile.outputStream().use { output ->
+                        inputStream?.copyTo(output)
+                    }
+                    inputStream?.close()
+                    withContext(Dispatchers.Main) {
+                        selectedSigToolFile = tempFile
+                    }
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+            }
+        }
+    }
     
     var showIdCardGuideDialog by remember { mutableStateOf(false) }
     var showExtractTextOptionsDialog by remember { mutableStateOf(false) }
     var showTableScanOptionsDialog by remember { mutableStateOf(false) }
     var successDialogDoc by remember { mutableStateOf<DocumentEntity?>(null) }
 
-    val coroutineScope = rememberCoroutineScope()
+    
 
     if (successDialogDoc != null) {
         val doc = successDialogDoc!!
@@ -281,6 +306,7 @@ fun HomeScreen(
     var renameStepActive by remember { mutableStateOf(false) }
     var documentNameInput by remember { mutableStateOf("") }
     var isNameEditedByUser by remember { mutableStateOf(false) }
+    var isGeneratingName by remember { mutableStateOf(false) }
     
     var editingFile by remember { mutableStateOf<File?>(null) }
     var editingPageIndex by remember { mutableStateOf(-1) }
@@ -382,6 +408,43 @@ fun HomeScreen(
                                     }
                                 }
                             )
+                            
+                            Button(
+                                onClick = {
+                                    isGeneratingName = true
+                                    val firstUri = scannedImageUris?.firstOrNull()
+                                    if (firstUri != null) {
+                                        com.example.ui.OCRHelper.extractText(
+                                            context = context,
+                                            uri = firstUri,
+                                            onSuccess = { text ->
+                                                val name = com.example.ui.ai.AISmartNaming.generateSmartFileName(text)
+                                                documentNameInput = name
+                                                isNameEditedByUser = true
+                                                isGeneratingName = false
+                                            },
+                                            onError = {
+                                                isGeneratingName = false
+                                            }
+                                        )
+                                    } else {
+                                        isGeneratingName = false
+                                    }
+                                },
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.tertiary),
+                                enabled = !isGeneratingName
+                            ) {
+                                if (isGeneratingName) {
+                                    CircularProgressIndicator(modifier = Modifier.size(18.dp), color = Color.White, strokeWidth = 2.dp)
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text("Analyzing Document...")
+                                } else {
+                                    Icon(Icons.Default.AutoAwesome, contentDescription = null, modifier = Modifier.size(18.dp))
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text("Smart Rename (AI)")
+                                }
+                            }
                             
                             Spacer(modifier = Modifier.height(4.dp))
                             
@@ -1033,6 +1096,22 @@ fun HomeScreen(
         )
     }
 
+    if (selectedSigToolFile != null) {
+        val bmp = remember(selectedSigToolFile) { BitmapFactory.decodeFile(selectedSigToolFile!!.absolutePath) }
+        if (bmp != null) {
+            com.example.ui.components.SignatureExtractionDialog(
+                documentBitmap = bmp,
+                onDismiss = { selectedSigToolFile = null }
+            )
+        }
+    }
+    
+    if (showSignatureLibrary) {
+        com.example.ui.components.SignatureLibraryDialog(
+            onDismiss = { showSignatureLibrary = false }
+        )
+    }
+
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         bottomBar = {
@@ -1078,58 +1157,49 @@ fun HomeScreen(
                 )
                 Spacer(modifier = Modifier.height(12.dp))
                 
-                // Hero Magic Scan Card
+                // AI Signature Extractor Card
                 Card(
-                    onClick = {
-                        isMagicScanActive = true
-                        val activity = generateSequence(context) { (it as? android.content.ContextWrapper)?.baseContext }.filterIsInstance<Activity>().firstOrNull()
-                        if (activity != null) {
-                            ScannerHelper.startScan(activity, scannerLauncher)
-                        }
-                    },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(110.dp),
+                    modifier = Modifier.fillMaxWidth(),
                     colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.primaryContainer
-                    ),
-                    shape = RoundedCornerShape(20.dp),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 6.dp)
+                        containerColor = MaterialTheme.colorScheme.secondaryContainer
+                    )
                 ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(16.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                                Text(
-                                    text = "Magic Scan (One-Tap AI)",
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.onPrimaryContainer
-                                )
-                            }
-                            Spacer(modifier = Modifier.height(4.dp))
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Icon(
+                                imageVector = Icons.Default.Gesture,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.secondary
+                            )
                             Text(
-                                text = "Auto crop, deskew, shadow & finger removal, blur check & smart naming in 1 tap!",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
+                                text = "AI Signature Extractor",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSecondaryContainer
                             )
                         }
-                        Surface(
-                            shape = CircleShape,
-                            color = MaterialTheme.colorScheme.primary
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.PlayArrow,
-                                contentDescription = "Start Magic Scan",
-                                tint = Color.White,
-                                modifier = Modifier.padding(12.dp).size(24.dp)
-                            )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = "Detect handwritten signatures on scanned documents and save/copy as transparent PNG.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.8f)
+                        )
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Button(
+                                onClick = { sigImagePickerLauncher.launch("image/*") }
+                            ) {
+                                Icon(Icons.Default.Gesture, contentDescription = null)
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text("Extract Signature")
+                            }
+                            OutlinedButton(
+                                onClick = { showSignatureLibrary = true }
+                            ) {
+                                Icon(Icons.Default.FolderSpecial, contentDescription = null)
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text("My Signatures")
+                            }
                         }
                     }
                 }

@@ -52,7 +52,8 @@ fun SignatureLibraryDialog(
     ) {
         Surface(
             modifier = Modifier
-                .fillMaxSize()
+                .fillMaxWidth(0.95f)
+                .fillMaxHeight(0.9f)
                 .padding(16.dp),
             shape = RoundedCornerShape(24.dp),
             color = MaterialTheme.colorScheme.surface,
@@ -61,6 +62,7 @@ fun SignatureLibraryDialog(
             Column(
                 modifier = Modifier
                     .fillMaxSize()
+                .windowInsetsPadding(WindowInsets.safeDrawing)
                     .padding(16.dp)
             ) {
                 // Header
@@ -162,6 +164,7 @@ fun SignatureLibraryDialog(
                                                 contentDescription = sig.name,
                                                 modifier = Modifier
                                                     .fillMaxSize()
+                .windowInsetsPadding(WindowInsets.safeDrawing)
                                                     .padding(8.dp),
                                                 contentScale = ContentScale.Fit
                                             )

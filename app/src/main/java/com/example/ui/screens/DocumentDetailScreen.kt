@@ -44,7 +44,6 @@ fun DocumentDetailScreen(
     var isOcrLoading by remember { mutableStateOf(false) }
     var isTableScanLoading by remember { mutableStateOf(false) }
     var editingFile by remember { mutableStateOf<File?>(null) }
-    var fineTuneFile by remember { mutableStateOf<File?>(null) }
     var signatureExtractBitmap by remember { mutableStateOf<android.graphics.Bitmap?>(null) }
     var signatureManagerFile by remember { mutableStateOf<File?>(null) }
     var imageRefreshTrigger by remember { mutableStateOf(0) }
@@ -148,20 +147,6 @@ fun DocumentDetailScreen(
                                 Text("Signature")
                             }
 
-                            FilledTonalButton(
-                                onClick = {
-                                    fineTuneFile = File(imagePaths.first())
-                                },
-                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.AutoFixHigh,
-                                    contentDescription = "AI Deskew",
-                                    modifier = Modifier.size(18.dp)
-                                )
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text("AI Deskew")
-                            }
 
                             FilledIconButton(
                                 onClick = {
@@ -344,19 +329,6 @@ fun DocumentDetailScreen(
         )
     }
 
-    if (fineTuneFile != null) {
-        com.example.ui.components.AutoDeskewFineTuneDialog(
-            imageFile = fineTuneFile!!,
-            onDismiss = { fineTuneFile = null },
-            onApply = { newBitmap ->
-                viewModel.updateDocumentImage(fineTuneFile!!, newBitmap) {
-                    imageRefreshTrigger++
-                    fineTuneFile = null
-                    Toast.makeText(context, "Document deskewed & enhanced successfully!", Toast.LENGTH_SHORT).show()
-                }
-            }
-        )
-    }
 
     if (signatureManagerFile != null) {
         com.example.ui.components.SignatureManagerDialog(

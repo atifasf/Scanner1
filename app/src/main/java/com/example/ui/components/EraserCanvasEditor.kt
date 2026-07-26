@@ -39,8 +39,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
 data class EraseStroke(
     val points: List<Offset>, // In Bitmap coordinates
     val strokeWidth: Float    // In Bitmap coordinates
