@@ -156,6 +156,9 @@ class DocumentViewModel(application: Application) : AndroidViewModel(application
         customName: String? = null,
         folderId: String? = null,
         isIdCardGrid: Boolean = false,
+        textDarkness: Float = 0f,
+        backgroundClarity: Float = 0f,
+        enableAutoDeskew: Boolean = false,
         onComplete: (com.example.data.DocumentEntity) -> Unit
     ) {
         viewModelScope.launch(Dispatchers.IO) {
@@ -199,9 +202,28 @@ class DocumentViewModel(application: Application) : AndroidViewModel(application
                         // Resize if still larger than maxDim to be safe
                         val resized = resizeBitmapIfNeeded(originalBitmap, maxDim)
                         
-                        // Apply AI Boundary Detection, Perspective Correction, Text Line Auto-Deskew & CamScanner Whitening
-                        ocrProgress.value = "AI Auto-Deskewing & Whitening Page ${index + 1}..."
-                        val enhanced = com.example.ui.AutoDeskewEnhancer.autoProcessDocument(app, resized)
+                        // Apply AI Whitening & Optional Auto Deskew (Preserve exact user position & crop)
+                        ocrProgress.value = "AI Enhancing & Whitening Page ${index + 1}..."
+                        var enhanced = com.example.ui.AutoDeskewEnhancer.autoProcessDocument(
+                            context = app,
+                            original = resized,
+                            skipCrop = true, // Preserve exact document position/crop selected by user
+                            enableAutoDeskew = enableAutoDeskew
+                        )
+                        
+                        if (textDarkness > 0f || backgroundClarity > 0f) {
+                            val filtered = com.example.ui.ImageEnhancer.applyTextDarknessAndBackgroundClarity(
+                                enhanced,
+                                textDarkness,
+                                backgroundClarity
+                            )
+                            if (filtered != enhanced) {
+                                if (enhanced != resized && enhanced != originalBitmap) {
+                                    enhanced.recycle()
+                                }
+                                enhanced = filtered
+                            }
+                        }
                         
                         file.outputStream().use { output ->
                             enhanced.compress(Bitmap.CompressFormat.JPEG, quality, output)

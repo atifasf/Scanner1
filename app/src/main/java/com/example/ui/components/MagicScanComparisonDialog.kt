@@ -115,7 +115,7 @@ fun MagicScanComparisonDialog(
                                 fontWeight = FontWeight.Bold
                             )
                             Text(
-                                text = "Auto deskew, shadow & finger removal applied",
+                                text = "Shadow & finger removal applied",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )

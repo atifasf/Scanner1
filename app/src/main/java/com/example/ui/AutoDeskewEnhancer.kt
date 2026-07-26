@@ -62,7 +62,8 @@ object AutoDeskewEnhancer {
         context: Context,
         original: Bitmap,
         mode: EnhancementMode = EnhancementMode.MAGIC_COLOR,
-        skipCrop: Boolean = false
+        skipCrop: Boolean = true, // Preserve exact document position/crop selected by user by default
+        enableAutoDeskew: Boolean = false // Optional auto deskew, OFF by default
     ): Bitmap = withContext(Dispatchers.IO) {
         try {
             val deskewed: Bitmap
@@ -72,16 +73,20 @@ object AutoDeskewEnhancer {
                 // Step 1: Detect document boundary
                 val corners = detectCorners(original)
 
-                // Step 2: Perspective warp to perfect rectangular page
+                // Step 2: Perspective warp to rectangular page
                 warped = warpPerspective(original, corners)
             }
 
-            // Step 3: Text line angle analysis and auto rotation/deskew
-            val deskewAngle = detectTextSkewAngle(warped)
-            deskewed = if (abs(deskewAngle) > 0.4f) {
-                rotateBitmap(warped, deskewAngle)
+            // Step 3: Optional auto deskew (OFF by default)
+            if (enableAutoDeskew) {
+                val deskewAngle = detectTextSkewAngle(warped)
+                deskewed = if (kotlin.math.abs(deskewAngle) > 0.4f) {
+                    rotateBitmap(warped, deskewAngle)
+                } else {
+                    warped
+                }
             } else {
-                warped
+                deskewed = warped
             }
 
             if (deskewed != warped && warped != original) {
@@ -274,7 +279,6 @@ object AutoDeskewEnhancer {
                         if (hypot(dx, dy) > 30f) {
                             val angleRad = atan2(dy, dx)
                             var angleDeg = Math.toDegrees(angleRad.toDouble()).toFloat()
-                            // Normalize to -45..45 range
                             while (angleDeg > 45f) angleDeg -= 90f
                             while (angleDeg < -45f) angleDeg += 90f
                             angles.add(angleDeg)
@@ -285,7 +289,6 @@ object AutoDeskewEnhancer {
 
             if (angles.isEmpty()) return@withContext 0f
 
-            // Return median skew angle
             angles.sort()
             val medianAngle = angles[angles.size / 2]
             return@withContext medianAngle

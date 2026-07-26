@@ -20,7 +20,7 @@ object AIMagicScan {
 
     /**
      * Executes single-tap AI Magic Scan pipeline:
-     * Edge detection -> Perspective Warp -> Auto Deskew -> Shadow Removal -> Finger Removal -> Whitening & Text Sharpening -> Blur Check -> Smart Naming
+     * Edge detection -> Perspective Warp -> Shadow Removal -> Finger Removal -> Whitening & Text Sharpening -> Blur Check -> Smart Naming
      */
     suspend fun processMagicScan(
         context: Context,

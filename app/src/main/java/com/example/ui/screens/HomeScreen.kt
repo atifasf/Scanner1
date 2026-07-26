@@ -31,6 +31,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
@@ -322,6 +323,11 @@ fun HomeScreen(
         var selectedFormat by remember { mutableStateOf(com.example.ui.DocumentViewModel.OutputFormat.PDF) }
         var isSearchablePdf by remember { mutableStateOf(false) }
         
+        // Scan Enhancement Filters
+        var textDarkness by remember { mutableFloatStateOf(0f) }
+        var backgroundClarity by remember { mutableFloatStateOf(0f) }
+        var enableAutoDeskew by remember { mutableStateOf(false) }
+        
         val defaultPrefix = when (selectedFormat) {
             com.example.ui.DocumentViewModel.OutputFormat.PDF -> "Scan"
             com.example.ui.DocumentViewModel.OutputFormat.JPEG -> "Scan_Img"
@@ -549,6 +555,118 @@ fun HomeScreen(
                             }
                         }
                         
+                        // Scan Enhancement Filters Card
+                        Card(
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.2f)
+                            ),
+                            shape = RoundedCornerShape(14.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(12.dp),
+                                verticalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Tune,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Text(
+                                        text = "Scan Enhancement Filters",
+                                        style = MaterialTheme.typography.labelLarge,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.primary
+                                    )
+                                }
+
+                                Spacer(modifier = Modifier.height(2.dp))
+
+                                // Text Darkness Slider
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = "Text Darkness (Darken Black)",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                    Text(
+                                        text = "${(textDarkness * 100).toInt()}%",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.primary
+                                    )
+                                }
+                                Slider(
+                                    value = textDarkness,
+                                    onValueChange = { textDarkness = it },
+                                    valueRange = 0f..1f,
+                                    modifier = Modifier.fillMaxWidth().height(28.dp)
+                                )
+
+                                // White Background Clarity Slider
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = "White Background Clarity",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                    Text(
+                                        text = "${(backgroundClarity * 100).toInt()}%",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.primary
+                                    )
+                                }
+                                Slider(
+                                    value = backgroundClarity,
+                                    onValueChange = { backgroundClarity = it },
+                                    valueRange = 0f..1f,
+                                    modifier = Modifier.fillMaxWidth().height(28.dp)
+                                )
+
+                                Spacer(modifier = Modifier.height(4.dp))
+
+                                // Optional Auto-Deskew Switch (OFF by default)
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = "Auto-Deskew (Straighten Text)",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            fontWeight = FontWeight.SemiBold
+                                        )
+                                        Text(
+                                            text = "Off by default to preserve exact crop",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            fontSize = 10.sp,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                    Switch(
+                                        checked = enableAutoDeskew,
+                                        onCheckedChange = { enableAutoDeskew = it },
+                                        modifier = Modifier.scale(0.8f)
+                                    )
+                                }
+                            }
+                        }
+                        
                         HorizontalDivider()
 
                         Text(
@@ -728,7 +846,10 @@ fun HomeScreen(
                                     isSearchablePdf = isSearchablePdf,
                                     customName = documentNameInput,
                                     folderId = currentFolderId,
-                                    isIdCardGrid = isIdCardScan
+                                    isIdCardGrid = isIdCardScan,
+                                    textDarkness = textDarkness,
+                                    backgroundClarity = backgroundClarity,
+                                    enableAutoDeskew = enableAutoDeskew
                                 ) {
                                     showFormatSelectionScreen = false
                                     scannedImageUris = null
