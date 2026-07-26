@@ -40,6 +40,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.graphics.Brush
+import com.example.R
 import com.example.data.DocumentEntity
 import com.example.ui.DocumentViewModel
 import com.example.ui.ScannerHelper
@@ -81,6 +84,8 @@ fun HomeScreen(
     var signatureSourceBitmap by remember { mutableStateOf<Bitmap?>(null) }
     var selectedSigToolFile by remember { mutableStateOf<File?>(null) }
     var showSignatureLibrary by remember { mutableStateOf(false) }
+    var showSignatureMenuDialog by remember { mutableStateOf(false) }
+    var docForSignature by remember { mutableStateOf<DocumentEntity?>(null) }
     
     val sigImagePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
@@ -1106,9 +1111,105 @@ fun HomeScreen(
         }
     }
     
+    if (docForSignature != null) {
+        val firstImagePath = docForSignature!!.imagePaths.split(",").firstOrNull()
+        val file = firstImagePath?.let { File(it) }
+        if (file != null && file.exists()) {
+            com.example.ui.components.SignatureManagerDialog(
+                documentFile = file,
+                onDismiss = { docForSignature = null },
+                onDocumentUpdated = {
+                    docForSignature?.let { doc ->
+                        viewModel.updateDocument(doc.copy(dateCreated = System.currentTimeMillis()))
+                    }
+                    docForSignature = null
+                }
+            )
+        } else {
+            Toast.makeText(context, "No image file found for signature on this document", Toast.LENGTH_SHORT).show()
+            docForSignature = null
+        }
+    }
+    
     if (showSignatureLibrary) {
         com.example.ui.components.SignatureLibraryDialog(
             onDismiss = { showSignatureLibrary = false }
+        )
+    }
+
+    if (showSignatureMenuDialog) {
+        AlertDialog(
+            onDismissRequest = { showSignatureMenuDialog = false },
+            title = {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Icon(
+                        imageVector = Icons.Default.Gesture,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                    Text(
+                        text = "AI Signature Tools",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            },
+            text = {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Surface(
+                        onClick = {
+                            showSignatureMenuDialog = false
+                            sigImagePickerLauncher.launch("image/*")
+                        },
+                        shape = RoundedCornerShape(12.dp),
+                        color = MaterialTheme.colorScheme.primaryContainer,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(16.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            Icon(Icons.Default.Gesture, contentDescription = null, tint = MaterialTheme.colorScheme.onPrimaryContainer)
+                            Column {
+                                Text("Extract Signature", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimaryContainer)
+                                Text("Auto-detect & crop signature into transparent PNG", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f))
+                            }
+                        }
+                    }
+
+                    Surface(
+                        onClick = {
+                            showSignatureMenuDialog = false
+                            showSignatureLibrary = true
+                        },
+                        shape = RoundedCornerShape(12.dp),
+                        color = MaterialTheme.colorScheme.secondaryContainer,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(16.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            Icon(Icons.Default.FolderSpecial, contentDescription = null, tint = MaterialTheme.colorScheme.onSecondaryContainer)
+                            Column {
+                                Text("My Saved Signatures", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSecondaryContainer)
+                                Text("View, create or paste signatures onto documents", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.8f))
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {},
+            dismissButton = {
+                TextButton(onClick = { showSignatureMenuDialog = false }) {
+                    Text("Cancel")
+                }
+            }
         )
     }
 
@@ -1155,213 +1256,65 @@ fun HomeScreen(
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.primary
                 )
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(8.dp))
                 
-                // AI Signature Extractor Card
+                // Top 5 Compact Feature Bar
                 Card(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 4.dp),
                     colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.secondaryContainer
-                    )
+                        containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.25f)
+                    ),
+                    shape = RoundedCornerShape(20.dp),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
                 ) {
-                    Column(modifier = Modifier.padding(16.dp)) {
-                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Icon(
-                                imageVector = Icons.Default.Gesture,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.secondary
-                            )
-                            Text(
-                                text = "AI Signature Extractor",
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSecondaryContainer
-                            )
-                        }
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text(
-                            text = "Detect handwritten signatures on scanned documents and save/copy as transparent PNG.",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.8f)
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 12.dp, horizontal = 2.dp),
+                        horizontalArrangement = Arrangement.SpaceEvenly,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        // 1. ID Card Scan
+                        QuickActionButton(
+                            imageRes = R.drawable.img_icon_idcard_1785074510448,
+                            icon = Icons.Default.CreditCard,
+                            label = "ID Card",
+                            onClick = { showIdCardGuideDialog = true }
                         )
-                        Spacer(modifier = Modifier.height(12.dp))
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Button(
-                                onClick = { sigImagePickerLauncher.launch("image/*") }
-                            ) {
-                                Icon(Icons.Default.Gesture, contentDescription = null)
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text("Extract Signature")
-                            }
-                            OutlinedButton(
-                                onClick = { showSignatureLibrary = true }
-                            ) {
-                                Icon(Icons.Default.FolderSpecial, contentDescription = null)
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text("My Signatures")
-                            }
-                        }
-                    }
-                }
 
-                Spacer(modifier = Modifier.height(12.dp))
+                        // 2. Extract Text
+                        QuickActionButton(
+                            imageRes = R.drawable.img_icon_ocr_1785074525852,
+                            icon = Icons.Default.Description,
+                            label = "Text OCR",
+                            onClick = { showExtractTextOptionsDialog = true }
+                        )
 
-                // 2x2 Feature Grid
-                Column(
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        // ID Card Scan Button
-                        Card(
-                            onClick = { showIdCardGuideDialog = true },
-                            modifier = Modifier
-                                .weight(1f)
-                                .height(96.dp),
-                            colors = CardDefaults.cardColors(
-                                containerColor = Color(0xFF0D47A1), contentColor = Color.White
-                            ),
-                            elevation = CardDefaults.cardElevation(defaultElevation = 8.dp, pressedElevation = 2.dp),
-                            shape = RoundedCornerShape(16.dp)
-                        ) {
-                            Column(
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .padding(12.dp),
-                                verticalArrangement = Arrangement.Center,
-                                horizontalAlignment = Alignment.CenterHorizontally
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.CreditCard,
-                                    contentDescription = "ID Card Scan",
-                                    tint = Color.White,
-                                    modifier = Modifier.size(28.dp)
-                                )
-                                Spacer(modifier = Modifier.height(6.dp))
-                                Text(
-                                    text = "ID Card Scan",
-                                    style = MaterialTheme.typography.labelLarge,
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color.White,
-                                    maxLines = 1
-                                )
-                            }
-                        }
-                        
-                        // Extract Text Button
-                        Card(
-                            onClick = { showExtractTextOptionsDialog = true },
-                            modifier = Modifier
-                                .weight(1f)
-                                .height(96.dp),
-                            colors = CardDefaults.cardColors(
-                                containerColor = Color(0xFF0D47A1), contentColor = Color.White
-                            ),
-                            elevation = CardDefaults.cardElevation(defaultElevation = 8.dp, pressedElevation = 2.dp),
-                            shape = RoundedCornerShape(16.dp)
-                        ) {
-                            Column(
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .padding(12.dp),
-                                verticalArrangement = Arrangement.Center,
-                                horizontalAlignment = Alignment.CenterHorizontally
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Description,
-                                    contentDescription = "Extract Text",
-                                    tint = Color.White,
-                                    modifier = Modifier.size(28.dp)
-                                )
-                                Spacer(modifier = Modifier.height(6.dp))
-                                Text(
-                                    text = "Extract Text",
-                                    style = MaterialTheme.typography.labelLarge,
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color.White,
-                                    maxLines = 1
-                                )
-                            }
-                        }
-                    }
-                    
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        // PDF to Word Button
-                        Card(
-                            onClick = { pdfPickerLauncher.launch("application/pdf") },
-                            modifier = Modifier
-                                .weight(1f)
-                                .height(96.dp),
-                            colors = CardDefaults.cardColors(
-                                containerColor = Color(0xFF0D47A1), contentColor = Color.White
-                            ),
-                            elevation = CardDefaults.cardElevation(defaultElevation = 8.dp, pressedElevation = 2.dp),
-                            shape = RoundedCornerShape(16.dp)
-                        ) {
-                            Column(
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .padding(12.dp),
-                                verticalArrangement = Arrangement.Center,
-                                horizontalAlignment = Alignment.CenterHorizontally
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.InsertDriveFile,
-                                    contentDescription = "PDF to Word",
-                                    tint = Color.White,
-                                    modifier = Modifier.size(28.dp)
-                                )
-                                Spacer(modifier = Modifier.height(6.dp))
-                                Text(
-                                    text = "PDF to Word",
-                                    style = MaterialTheme.typography.labelLarge,
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color.White,
-                                    maxLines = 1
-                                )
-                            }
-                        }
-                        
-                        // Scan Table to Excel Button
-                        Card(
-                            onClick = { showTableScanOptionsDialog = true },
-                            modifier = Modifier
-                                .weight(1f)
-                                .height(96.dp),
-                            colors = CardDefaults.cardColors(
-                                containerColor = Color(0xFF0D47A1), contentColor = Color.White
-                            ),
-                            elevation = CardDefaults.cardElevation(defaultElevation = 8.dp, pressedElevation = 2.dp),
-                            shape = RoundedCornerShape(16.dp)
-                        ) {
-                            Column(
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .padding(12.dp),
-                                verticalArrangement = Arrangement.Center,
-                                horizontalAlignment = Alignment.CenterHorizontally
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.GridOn,
-                                    contentDescription = "Scan Table",
-                                    tint = Color.White,
-                                    modifier = Modifier.size(28.dp)
-                                )
-                                Spacer(modifier = Modifier.height(6.dp))
-                                Text(
-                                    text = "Scan Table",
-                                    style = MaterialTheme.typography.labelLarge,
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color.White,
-                                    maxLines = 1
-                                )
-                            }
-                        }
+                        // 3. AI Signature
+                        QuickActionButton(
+                            imageRes = R.drawable.img_icon_signature_1785074541161,
+                            icon = Icons.Default.Gesture,
+                            label = "Signature",
+                            onClick = { showSignatureMenuDialog = true }
+                        )
+
+                        // 4. PDF to Word
+                        QuickActionButton(
+                            imageRes = R.drawable.img_icon_pdf_1785074556862,
+                            icon = Icons.AutoMirrored.Filled.InsertDriveFile,
+                            label = "PDF->Word",
+                            onClick = { pdfPickerLauncher.launch("application/pdf") }
+                        )
+
+                        // 5. Scan Table
+                        QuickActionButton(
+                            imageRes = R.drawable.img_icon_table_1785074580205,
+                            icon = Icons.Default.GridOn,
+                            label = "Scan Table",
+                            onClick = { showTableScanOptionsDialog = true }
+                        )
                     }
                 }
             }
@@ -1482,6 +1435,7 @@ fun HomeScreen(
                                 onDeleteClick = { viewModel.moveToTrash(doc.id) },
                                 onMoveClick = { documentToMove = doc },
                                 onRenameClick = { documentToRename = doc },
+                                onAddSignatureClick = { docForSignature = doc },
                                 onShareClick = {
                                     val file = doc.pdfPath?.let { java.io.File(it) } 
                                         ?: doc.imagePaths.split(",").firstOrNull()?.let { java.io.File(it) }
@@ -1698,6 +1652,7 @@ fun DocumentListItem(
     onDeleteClick: () -> Unit,
     onMoveClick: () -> Unit,
     onRenameClick: () -> Unit,
+    onAddSignatureClick: () -> Unit = {},
     onShareClick: () -> Unit
 ) {
     val firstImagePath = document.imagePaths.split(",").firstOrNull()
@@ -1781,6 +1736,14 @@ fun DocumentListItem(
                         onClick()
                     },
                     leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null) }
+                )
+                DropdownMenuItem(
+                    text = { Text("Add / Paste Signature") },
+                    onClick = {
+                        showMenu = false
+                        onAddSignatureClick()
+                    },
+                    leadingIcon = { Icon(Icons.Default.Gesture, contentDescription = null, tint = MaterialTheme.colorScheme.primary) }
                 )
                 DropdownMenuItem(
                     text = { Text("Rename") },
@@ -1907,6 +1870,86 @@ fun BottomNavItem(icon: androidx.compose.ui.graphics.vector.ImageVector, label: 
             fontSize = 10.sp,
             fontWeight = if (isSelected) FontWeight.ExtraBold else FontWeight.Medium,
             color = currentColor
+        )
+    }
+}
+
+@Composable
+private fun QuickActionButton(
+    icon: androidx.compose.ui.graphics.vector.ImageVector? = null,
+    imageRes: Int? = null,
+    label: String,
+    onClick: () -> Unit
+) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier
+            .width(66.dp)
+            .clickable(
+                onClick = onClick,
+                indication = null,
+                interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
+            )
+    ) {
+        Surface(
+            onClick = onClick,
+            shape = RoundedCornerShape(16.dp),
+            color = Color.Transparent,
+            shadowElevation = 6.dp,
+            modifier = Modifier
+                .size(52.dp)
+                .background(
+                    brush = Brush.verticalGradient(
+                        colors = listOf(
+                            Color(0xFF2575FC),
+                            Color(0xFF0D47A1)
+                        )
+                    ),
+                    shape = RoundedCornerShape(16.dp)
+                )
+                .border(
+                    width = 1.5.dp,
+                    brush = Brush.verticalGradient(
+                        colors = listOf(
+                            Color(0xFF80D8FF),
+                            Color(0xFF1565C0)
+                        )
+                    ),
+                    shape = RoundedCornerShape(16.dp)
+                )
+        ) {
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier.fillMaxSize()
+            ) {
+                if (imageRes != null) {
+                    androidx.compose.foundation.Image(
+                        painter = painterResource(id = imageRes),
+                        contentDescription = label,
+                        modifier = Modifier
+                            .size(38.dp)
+                            .clip(RoundedCornerShape(10.dp)),
+                        contentScale = ContentScale.Fit
+                    )
+                } else if (icon != null) {
+                    Icon(
+                        imageVector = icon,
+                        contentDescription = label,
+                        tint = Color.White,
+                        modifier = Modifier.size(26.dp)
+                    )
+                }
+            }
+        }
+        Spacer(modifier = Modifier.height(6.dp))
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelSmall,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onSurface,
+            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
         )
     }
 }

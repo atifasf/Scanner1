@@ -156,7 +156,7 @@ object AISignatureExtractor {
     }
 
     /**
-     * Saves transparent signature bitmap to file.
+     * Saves transparent signature bitmap to file in internal storage.
      */
     fun saveSignaturePng(context: Context, signatureBitmap: Bitmap, fileName: String = "Signature_${System.currentTimeMillis()}"): File {
         val file = File(context.filesDir, "$fileName.png")
@@ -164,5 +164,41 @@ object AISignatureExtractor {
             signatureBitmap.compress(Bitmap.CompressFormat.PNG, 100, out)
         }
         return file
+    }
+
+    /**
+     * Saves transparent signature PNG bitmap directly into device's public Gallery / Pictures folder.
+     */
+    fun saveSignatureToGallery(context: Context, signatureBitmap: Bitmap, name: String = ""): Boolean {
+        val fileName = if (name.isBlank()) "Signature_${System.currentTimeMillis()}" else name.replace(" ", "_")
+        return try {
+            val resolver = context.contentResolver
+            val contentValues = android.content.ContentValues().apply {
+                put(android.provider.MediaStore.MediaColumns.DISPLAY_NAME, "$fileName.png")
+                put(android.provider.MediaStore.MediaColumns.MIME_TYPE, "image/png")
+                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+                    put(android.provider.MediaStore.MediaColumns.RELATIVE_PATH, android.os.Environment.DIRECTORY_PICTURES + "/Signatures")
+                    put(android.provider.MediaStore.MediaColumns.IS_PENDING, 1)
+                }
+            }
+
+            val imageUri = resolver.insert(android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI, contentValues)
+            if (imageUri != null) {
+                resolver.openOutputStream(imageUri)?.use { out ->
+                    signatureBitmap.compress(Bitmap.CompressFormat.PNG, 100, out)
+                }
+                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+                    contentValues.clear()
+                    contentValues.put(android.provider.MediaStore.MediaColumns.IS_PENDING, 0)
+                    resolver.update(imageUri, contentValues, null, null)
+                }
+                true
+            } else {
+                false
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+            false
+        }
     }
 }

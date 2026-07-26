@@ -60,6 +60,8 @@ fun SignatureExtractionDialog(
     var zoomScale by remember { mutableStateOf(1f) }
     var panOffset by remember { mutableStateOf(Offset.Zero) }
 
+    var customSigName by remember { mutableStateOf("") }
+
     LaunchedEffect(documentBitmap) {
         withContext(Dispatchers.IO) {
             val detectedBox = AISignatureExtractor.detectSignatureRegion(documentBitmap)
@@ -321,7 +323,7 @@ fun SignatureExtractionDialog(
                             Box(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .height(90.dp)
+                                    .height(80.dp)
                                     .clip(RoundedCornerShape(12.dp))
                                     .background(Color.White),
                                 contentAlignment = Alignment.Center
@@ -333,11 +335,20 @@ fun SignatureExtractionDialog(
                                     contentScale = ContentScale.Fit
                                 )
                             }
+                            Spacer(modifier = Modifier.height(8.dp))
+                            OutlinedTextField(
+                                value = customSigName,
+                                onValueChange = { customSigName = it },
+                                label = { Text("Signature Name (Optional)") },
+                                placeholder = { Text("e.g. My Primary Signature") },
+                                singleLine = true,
+                                modifier = Modifier.fillMaxWidth()
+                            )
                         }
                     }
                 }
 
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(10.dp))
 
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -348,9 +359,21 @@ fun SignatureExtractionDialog(
                             val bmp = transparentSignatureBmp
                             if (bmp != null) {
                                 scope.launch(Dispatchers.IO) {
-                                    val file = AISignatureExtractor.saveSignaturePng(context, bmp)
+                                    val nameToUse = customSigName.ifBlank { "Signature_${System.currentTimeMillis() % 10000}" }
+                                    
+                                    // 1. Save to Signature Library ("My Signatures")
+                                    com.example.ui.ai.SignatureLibraryManager.saveSignature(context, bmp, nameToUse)
+                                    
+                                    // 2. Save PNG directly to Gallery Pictures/Signatures
+                                    val savedToGallery = AISignatureExtractor.saveSignatureToGallery(context, bmp, nameToUse)
+                                    
                                     withContext(Dispatchers.Main) {
-                                        Toast.makeText(context, "Signature saved to ${file.name}", Toast.LENGTH_SHORT).show()
+                                        if (savedToGallery) {
+                                            Toast.makeText(context, "Saved '$nameToUse' to My Signatures & Phone Gallery!", Toast.LENGTH_LONG).show()
+                                        } else {
+                                            Toast.makeText(context, "Saved '$nameToUse' to My Signatures!", Toast.LENGTH_SHORT).show()
+                                        }
+                                        onDismiss()
                                     }
                                 }
                             }

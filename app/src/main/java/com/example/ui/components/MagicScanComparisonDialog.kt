@@ -51,6 +51,22 @@ fun MagicScanComparisonDialog(
     var showPasswordInput by remember { mutableStateOf(false) }
     var userDuplicateAction by remember { mutableStateOf("KEEP_BOTH") }
 
+    // Text Darkness & White Background Clarity Filter Controls
+    var textDarkness by remember { mutableFloatStateOf(0f) }
+    var backgroundClarity by remember { mutableFloatStateOf(0f) }
+
+    val processedEnhancedBitmap = remember(magicResult.enhancedBitmap, textDarkness, backgroundClarity) {
+        if (textDarkness > 0f || backgroundClarity > 0f) {
+            com.example.ui.ImageEnhancer.applyTextDarknessAndBackgroundClarity(
+                magicResult.enhancedBitmap,
+                textDarkness,
+                backgroundClarity
+            )
+        } else {
+            magicResult.enhancedBitmap
+        }
+    }
+
     Dialog(
         onDismissRequest = onDismiss,
         properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)
@@ -122,7 +138,7 @@ fun MagicScanComparisonDialog(
                         .background(Color.Black.copy(alpha = 0.9f)),
                     contentAlignment = Alignment.Center
                 ) {
-                    val currentDisplayBmp = if (showOriginal) magicResult.originalBitmap else magicResult.enhancedBitmap
+                    val currentDisplayBmp = if (showOriginal) magicResult.originalBitmap else processedEnhancedBitmap
 
                     Image(
                         bitmap = currentDisplayBmp.asImageBitmap(),
@@ -234,6 +250,89 @@ fun MagicScanComparisonDialog(
                         shape = RoundedCornerShape(12.dp)
                     )
 
+                    // Document Filters: Text Darkness & Background Clarity
+                    Card(
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.2f)
+                        ),
+                        shape = RoundedCornerShape(14.dp)
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(10.dp),
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Tune,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Text(
+                                    text = "Scan Enhancement Filters",
+                                    style = MaterialTheme.typography.labelLarge,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.height(2.dp))
+
+                            // Text Darkness Slider
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = "Text Darkness (Darken Black)",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                                Text(
+                                    text = "${(textDarkness * 100).toInt()}%",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                            }
+                            Slider(
+                                value = textDarkness,
+                                onValueChange = { textDarkness = it },
+                                valueRange = 0f..1f,
+                                modifier = Modifier.fillMaxWidth().height(28.dp)
+                            )
+
+                            // White Background Clarity Slider
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = "White Background Clarity",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                                Text(
+                                    text = "${(backgroundClarity * 100).toInt()}%",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                            }
+                            Slider(
+                                value = backgroundClarity,
+                                onValueChange = { backgroundClarity = it },
+                                valueRange = 0f..1f,
+                                modifier = Modifier.fillMaxWidth().height(28.dp)
+                            )
+                        }
+                    }
+
                     // PDF Size Optimizer Preset Selection
                     Column {
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -311,7 +410,7 @@ fun MagicScanComparisonDialog(
                     Button(
                         onClick = {
                             onSave(
-                                magicResult.enhancedBitmap,
+                                processedEnhancedBitmap,
                                 fileName,
                                 selectedPreset,
                                 if (showPasswordInput && pdfPassword.isNotBlank()) pdfPassword else null,

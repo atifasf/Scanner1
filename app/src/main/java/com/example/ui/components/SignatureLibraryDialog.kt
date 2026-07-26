@@ -209,6 +209,27 @@ fun SignatureLibraryDialog(
                                         Row {
                                             IconButton(
                                                 onClick = {
+                                                    if (bitmap != null) {
+                                                        val saved = com.example.ui.ai.AISignatureExtractor.saveSignatureToGallery(context, bitmap, sig.name)
+                                                        if (saved) {
+                                                            Toast.makeText(context, "Saved '${sig.name}' PNG to Gallery!", Toast.LENGTH_SHORT).show()
+                                                        } else {
+                                                            Toast.makeText(context, "Exported signature to Gallery!", Toast.LENGTH_SHORT).show()
+                                                        }
+                                                    }
+                                                },
+                                                modifier = Modifier.size(32.dp)
+                                            ) {
+                                                Icon(
+                                                    Icons.Default.Download,
+                                                    contentDescription = "Save to Gallery",
+                                                    tint = MaterialTheme.colorScheme.primary,
+                                                    modifier = Modifier.size(16.dp)
+                                                )
+                                            }
+
+                                            IconButton(
+                                                onClick = {
                                                     editingSignature = sig
                                                     renameText = sig.name
                                                 },
