@@ -334,9 +334,42 @@ fun HomeScreen(
             com.example.ui.DocumentViewModel.OutputFormat.WORD -> "Scan_Doc"
         }
         
-        LaunchedEffect(selectedFormat, showFormatSelectionScreen) {
-            if (!isNameEditedByUser && showFormatSelectionScreen) {
-                documentNameInput = "${defaultPrefix}_${SimpleDateFormat("yyyyMMdd_HHmm", Locale.getDefault()).format(Date())}"
+        LaunchedEffect(scannedImageUris, showFormatSelectionScreen) {
+            if (!isNameEditedByUser && showFormatSelectionScreen && scannedImageUris != null && scannedImageUris!!.isNotEmpty()) {
+                isGeneratingName = true
+                val uris = scannedImageUris!!
+                val fullTextBuilder = StringBuilder()
+                val latch = java.util.concurrent.CountDownLatch(uris.size)
+                
+                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                    uris.forEach { uri ->
+                        com.example.ui.OCRHelper.extractText(
+                            context = context,
+                            uri = uri,
+                            onSuccess = { pageText ->
+                                synchronized(fullTextBuilder) {
+                                    fullTextBuilder.append(pageText).append("\n\n")
+                                }
+                                latch.countDown()
+                            },
+                            onError = {
+                                latch.countDown()
+                            }
+                        )
+                    }
+                    try {
+                        latch.await(4, java.util.concurrent.TimeUnit.SECONDS)
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                    }
+                }
+                
+                val combinedText = fullTextBuilder.toString()
+                val smartName = com.example.ui.ai.AISmartNaming.generateSmartFileName(combinedText)
+                if (!isNameEditedByUser && smartName.isNotBlank()) {
+                    documentNameInput = smartName
+                }
+                isGeneratingName = false
             }
         }
         
@@ -423,21 +456,38 @@ fun HomeScreen(
                             Button(
                                 onClick = {
                                     isGeneratingName = true
-                                    val firstUri = scannedImageUris?.firstOrNull()
-                                    if (firstUri != null) {
-                                        com.example.ui.OCRHelper.extractText(
-                                            context = context,
-                                            uri = firstUri,
-                                            onSuccess = { text ->
-                                                val name = com.example.ui.ai.AISmartNaming.generateSmartFileName(text)
+                                    val uris = scannedImageUris
+                                    if (!uris.isNullOrEmpty()) {
+                                        coroutineScope.launch(Dispatchers.IO) {
+                                            val fullTextBuilder = StringBuilder()
+                                            val latch = java.util.concurrent.CountDownLatch(uris.size)
+                                            uris.forEach { uri ->
+                                                com.example.ui.OCRHelper.extractText(
+                                                    context = context,
+                                                    uri = uri,
+                                                    onSuccess = { pageText ->
+                                                        synchronized(fullTextBuilder) {
+                                                            fullTextBuilder.append(pageText).append("\n\n")
+                                                        }
+                                                        latch.countDown()
+                                                    },
+                                                    onError = {
+                                                        latch.countDown()
+                                                    }
+                                                )
+                                            }
+                                            try {
+                                                latch.await(4, java.util.concurrent.TimeUnit.SECONDS)
+                                            } catch (e: Exception) {
+                                                e.printStackTrace()
+                                            }
+                                            val name = com.example.ui.ai.AISmartNaming.generateSmartFileName(fullTextBuilder.toString())
+                                            withContext(Dispatchers.Main) {
                                                 documentNameInput = name
-                                                isNameEditedByUser = true
-                                                isGeneratingName = false
-                                            },
-                                            onError = {
+                                                isNameEditedByUser = false
                                                 isGeneratingName = false
                                             }
-                                        )
+                                        }
                                     } else {
                                         isGeneratingName = false
                                     }
@@ -946,8 +996,8 @@ fun HomeScreen(
                 currentFolderId = folderId
                 
                 if (isIdCardScan) {
-                    documentNameInput = "ID_Card_${SimpleDateFormat("yyyyMMdd_HHmm", Locale.getDefault()).format(Date())}"
-                    isNameEditedByUser = true
+                    documentNameInput = "CNIC"
+                    isNameEditedByUser = false
                     showFormatSelectionScreen = true
                 } else if (isExtractTextFromCamera) {
                     isExtractTextFromCamera = false
