@@ -9,6 +9,9 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.calculateCentroid
+import androidx.compose.foundation.gestures.calculatePan
+import androidx.compose.foundation.gestures.calculateZoom
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -27,7 +30,10 @@ import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.*
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.withTransform
+import androidx.compose.ui.input.pointer.changedToDown
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.positionChanged
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -72,6 +78,12 @@ fun EraserCanvasEditor(
     val currentStrokePoints = remember { mutableStateListOf<Offset>() }
     
     var brushSize by remember { mutableFloatStateOf(40f) } // Brush size in DP/Canvas pixels
+    
+    // Zoom & Pan state
+    var zoomScale by remember { mutableFloatStateOf(1f) }
+    var panOffsetX by remember { mutableFloatStateOf(0f) }
+    var panOffsetY by remember { mutableFloatStateOf(0f) }
+    var activePointerPos by remember { mutableStateOf<Offset?>(null) }
     
     // Canvas dimensions
     var canvasWidth by remember { mutableFloatStateOf(0f) }
@@ -246,6 +258,9 @@ fun EraserCanvasEditor(
                                 undoStack.clear()
                                 textDarkness = 0f
                                 backgroundClarity = 0f
+                                zoomScale = 1f
+                                panOffsetX = 0f
+                                panOffsetY = 0f
                             },
                             contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
                             colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
@@ -412,135 +427,275 @@ fun EraserCanvasEditor(
                         }
                         .clipToBounds()
                 ) {
-                    // Mapping logic helper
-                    val scaleX = if (bitmapWidth > 0) canvasWidth / bitmapWidth else 1f
-                    val scaleY = if (bitmapHeight > 0) canvasHeight / bitmapHeight else 1f
-                    val scale = minOf(scaleX, scaleY)
+                    val fitScaleX = if (bitmapWidth > 0) canvasWidth / bitmapWidth else 1f
+                    val fitScaleY = if (bitmapHeight > 0) canvasHeight / bitmapHeight else 1f
+                    val fitScale = minOf(fitScaleX, fitScaleY)
                     
-                    val dstWidth = bitmapWidth * scale
-                    val dstHeight = bitmapHeight * scale
+                    val fitWidth = bitmapWidth * fitScale
+                    val fitHeight = bitmapHeight * fitScale
                     
-                    val offsetX = (canvasWidth - dstWidth) / 2f
-                    val offsetY = (canvasHeight - dstHeight) / 2f
+                    val fitOffsetX = (canvasWidth - fitWidth) / 2f
+                    val fitOffsetY = (canvasHeight - fitHeight) / 2f
                     
                     val imageBitmap = remember(currentBitmap) { currentBitmap.asImageBitmap() }
+                    
+                    var isMultiTouchGesture by remember { mutableStateOf(false) }
                     
                     Canvas(
                         modifier = Modifier
                             .fillMaxSize()
-                            .pointerInput(canvasWidth, canvasHeight) {
-                                detectDragGestures(
-                                    onDragStart = { pointer ->
-                                        // Drawing eraser strokes is ALWAYS allowed!
-                                        val xMapped = (pointer.x - offsetX) / scale
-                                        val yMapped = (pointer.y - offsetY) / scale
-                                        currentStrokePoints.clear()
-                                        currentStrokePoints.add(Offset(xMapped, yMapped))
-                                    },
-                                    onDrag = { change, dragAmount ->
-                                        change.consume()
-                                        val currentPos = change.position
-                                        val xMapped = (currentPos.x - offsetX) / scale
-                                        val yMapped = (currentPos.y - offsetY) / scale
-                                        currentStrokePoints.add(Offset(xMapped, yMapped))
-                                    },
-                                    onDragEnd = {
-                                        if (currentStrokePoints.isNotEmpty()) {
-                                            val brushSizeInBitmap = brushSize / scale
-                                            strokes.add(
-                                                EraseStroke(
-                                                    points = currentStrokePoints.toList(),
-                                                    strokeWidth = brushSizeInBitmap
+                            .pointerInput(canvasWidth, canvasHeight, fitScale, fitOffsetX, fitOffsetY, zoomScale, panOffsetX, panOffsetY, brushSize) {
+                                awaitPointerEventScope {
+                                    while (true) {
+                                        val event = awaitPointerEvent()
+                                        val pressedChanges = event.changes.filter { it.pressed }
+
+                                        if (pressedChanges.size >= 2) {
+                                            // 2 or more fingers: Zoom & Pan mode!
+                                            if (currentStrokePoints.isNotEmpty()) {
+                                                if (currentStrokePoints.size > 1) {
+                                                    val strokeWidthInBitmap = brushSize / (fitScale * zoomScale)
+                                                    strokes.add(
+                                                        EraseStroke(
+                                                            points = currentStrokePoints.toList(),
+                                                            strokeWidth = strokeWidthInBitmap
+                                                        )
+                                                    )
+                                                    undoStack.clear()
+                                                }
+                                                currentStrokePoints.clear()
+                                            }
+                                            isMultiTouchGesture = true
+
+                                            val currentCentroid = event.calculateCentroid()
+                                            val zoomChange = event.calculateZoom()
+                                            val panChange = event.calculatePan()
+
+                                            if (currentCentroid != Offset.Unspecified) {
+                                                val newZoom = (zoomScale * zoomChange).coerceIn(1f, 10f)
+                                                if (newZoom <= 1.01f) {
+                                                    zoomScale = 1f
+                                                    panOffsetX = 0f
+                                                    panOffsetY = 0f
+                                                } else {
+                                                    val maxPanX = (canvasWidth * (newZoom - 1f)) / 2f + canvasWidth * 0.4f
+                                                    val maxPanY = (canvasHeight * (newZoom - 1f)) / 2f + canvasHeight * 0.4f
+                                                    
+                                                    val newPanX = (panOffsetX + panChange.x).coerceIn(-maxPanX, maxPanX)
+                                                    val newPanY = (panOffsetY + panChange.y).coerceIn(-maxPanY, maxPanY)
+                                                    
+                                                    zoomScale = newZoom
+                                                    panOffsetX = newPanX
+                                                    panOffsetY = newPanY
+                                                }
+                                            }
+
+                                            pressedChanges.forEach { it.consume() }
+                                            activePointerPos = null
+                                        } else if (pressedChanges.size == 1) {
+                                            val change = pressedChanges[0]
+                                            if (isMultiTouchGesture) {
+                                                // Waiting for all fingers to lift after gesture
+                                                change.consume()
+                                                activePointerPos = null
+                                            } else {
+                                                // 1 finger: Erase mode!
+                                                val touchPos = change.position
+                                                activePointerPos = touchPos
+
+                                                // Inverse transform from Screen/Canvas to Bitmap space
+                                                val xZoomed = touchPos.x - panOffsetX
+                                                val yZoomed = touchPos.y - panOffsetY
+                                                val pivotX = canvasWidth / 2f
+                                                val pivotY = canvasHeight / 2f
+
+                                                val xFit = (xZoomed - pivotX) / zoomScale + pivotX
+                                                val yFit = (yZoomed - pivotY) / zoomScale + pivotY
+
+                                                val xBmp = (xFit - fitOffsetX) / fitScale
+                                                val yBmp = (yFit - fitOffsetY) / fitScale
+
+                                                val mappedPoint = Offset(xBmp, yBmp)
+
+                                                if (change.changedToDown()) {
+                                                    currentStrokePoints.clear()
+                                                    currentStrokePoints.add(mappedPoint)
+                                                } else if (change.positionChanged()) {
+                                                    currentStrokePoints.add(mappedPoint)
+                                                }
+
+                                                change.consume()
+                                            }
+                                        } else {
+                                            // All pointers lifted
+                                            if (isMultiTouchGesture) {
+                                                isMultiTouchGesture = false
+                                            }
+                                            if (currentStrokePoints.isNotEmpty()) {
+                                                val strokeWidthInBitmap = brushSize / (fitScale * zoomScale)
+                                                strokes.add(
+                                                    EraseStroke(
+                                                        points = currentStrokePoints.toList(),
+                                                        strokeWidth = strokeWidthInBitmap
+                                                    )
                                                 )
-                                            )
-                                            undoStack.clear()
-                                            currentStrokePoints.clear()
+                                                undoStack.clear()
+                                                currentStrokePoints.clear()
+                                            }
+                                            activePointerPos = null
                                         }
                                     }
-                                )
+                                }
                             }
                     ) {
-                        // 1. Draw the document bitmap applying GPU acceleration on-the-fly!
-                        val c = 1f + textDarkness * 1.5f
-                        val bVal = 128f * (1f - c) + backgroundClarity * 150f
-                        val matrix = ColorMatrix(
-                            floatArrayOf(
-                                c, 0f, 0f, 0f, bVal,
-                                0f, c, 0f, 0f, bVal,
-                                0f, 0f, c, 0f, bVal,
-                                0f, 0f, 0f, 1f, 0f
+                        // Hardware accelerated matrix transform
+                        withTransform({
+                            translate(left = panOffsetX, top = panOffsetY)
+                            scale(scaleX = zoomScale, scaleY = zoomScale, pivot = Offset(canvasWidth / 2f, canvasHeight / 2f))
+                        }) {
+                            // 1. Draw Document Bitmap
+                            val c = 1f + textDarkness * 1.5f
+                            val bVal = 128f * (1f - c) + backgroundClarity * 150f
+                            val matrix = ColorMatrix(
+                                floatArrayOf(
+                                    c, 0f, 0f, 0f, bVal,
+                                    0f, c, 0f, 0f, bVal,
+                                    0f, 0f, c, 0f, bVal,
+                                    0f, 0f, 0f, 1f, 0f
+                                )
                             )
-                        )
-                        
-                        drawImage(
-                            image = imageBitmap,
-                            dstSize = androidx.compose.ui.unit.IntSize(dstWidth.toInt(), dstHeight.toInt()),
-                            dstOffset = androidx.compose.ui.unit.IntOffset(offsetX.toInt(), offsetY.toInt()),
-                            colorFilter = ColorFilter.colorMatrix(matrix)
-                        )
-                        
-                        // Helper to map bitmap coordinates back to canvas screen coordinates
-                        fun mapToCanvas(offset: Offset): Offset {
-                            return Offset(
-                                x = offset.x * scale + offsetX,
-                                y = offset.y * scale + offsetY
+
+                            drawImage(
+                                image = imageBitmap,
+                                dstSize = androidx.compose.ui.unit.IntSize(fitWidth.toInt(), fitHeight.toInt()),
+                                dstOffset = androidx.compose.ui.unit.IntOffset(fitOffsetX.toInt(), fitOffsetY.toInt()),
+                                colorFilter = ColorFilter.colorMatrix(matrix)
                             )
-                        }
-                        
-                        // 2. Draw historical strokes (white lines)
-                        strokes.forEach { stroke ->
-                            if (stroke.points.size > 1) {
-                                val path = Path()
-                                val start = mapToCanvas(stroke.points[0])
-                                path.moveTo(start.x, start.y)
-                                for (i in 1 until stroke.points.size) {
-                                    val point = mapToCanvas(stroke.points[i])
-                                    path.lineTo(point.x, point.y)
-                                }
-                                drawPath(
-                                    path = path,
-                                    color = Color.White,
-                                    style = Stroke(
-                                        width = stroke.strokeWidth * scale,
-                                        cap = StrokeCap.Round,
-                                        join = StrokeJoin.Round
+
+                            // Helper to map bitmap coordinates to unzoomed Canvas coordinates
+                            fun mapToUnzoomedCanvas(offset: Offset): Offset {
+                                return Offset(
+                                    x = offset.x * fitScale + fitOffsetX,
+                                    y = offset.y * fitScale + fitOffsetY
+                                )
+                            }
+
+                            // 2. Draw Historical Erase Strokes
+                            strokes.forEach { stroke ->
+                                val canvasStrokeWidth = stroke.strokeWidth * fitScale
+                                if (stroke.points.size > 1) {
+                                    val path = Path()
+                                    val start = mapToUnzoomedCanvas(stroke.points[0])
+                                    path.moveTo(start.x, start.y)
+                                    for (i in 1 until stroke.points.size) {
+                                        val point = mapToUnzoomedCanvas(stroke.points[i])
+                                        path.lineTo(point.x, point.y)
+                                    }
+                                    drawPath(
+                                        path = path,
+                                        color = Color.White,
+                                        style = Stroke(
+                                            width = canvasStrokeWidth,
+                                            cap = StrokeCap.Round,
+                                            join = StrokeJoin.Round
+                                        )
                                     )
-                                )
-                            } else if (stroke.points.size == 1) {
-                                val point = mapToCanvas(stroke.points[0])
-                                drawCircle(
-                                    color = Color.White,
-                                    radius = (stroke.strokeWidth * scale) / 2f,
-                                    center = point
-                                )
+                                } else if (stroke.points.size == 1) {
+                                    val point = mapToUnzoomedCanvas(stroke.points[0])
+                                    drawCircle(
+                                        color = Color.White,
+                                        radius = canvasStrokeWidth / 2f,
+                                        center = point
+                                    )
+                                }
+                            }
+
+                            // 3. Draw Active Stroke
+                            if (currentStrokePoints.isNotEmpty()) {
+                                val activeCanvasWidth = brushSize / zoomScale
+                                if (currentStrokePoints.size > 1) {
+                                    val path = Path()
+                                    val start = mapToUnzoomedCanvas(currentStrokePoints[0])
+                                    path.moveTo(start.x, start.y)
+                                    for (i in 1 until currentStrokePoints.size) {
+                                        val point = mapToUnzoomedCanvas(currentStrokePoints[i])
+                                        path.lineTo(point.x, point.y)
+                                    }
+                                    drawPath(
+                                        path = path,
+                                        color = Color.White,
+                                        style = Stroke(
+                                            width = activeCanvasWidth,
+                                            cap = StrokeCap.Round,
+                                            join = StrokeJoin.Round
+                                        )
+                                    )
+                                } else if (currentStrokePoints.size == 1) {
+                                    val point = mapToUnzoomedCanvas(currentStrokePoints[0])
+                                    drawCircle(
+                                        color = Color.White,
+                                        radius = activeCanvasWidth / 2f,
+                                        center = point
+                                    )
+                                }
                             }
                         }
-                        
-                        // 3. Draw current active stroke
-                        if (currentStrokePoints.size > 1) {
-                            val path = Path()
-                            val start = mapToCanvas(currentStrokePoints[0])
-                            path.moveTo(start.x, start.y)
-                            for (i in 1 until currentStrokePoints.size) {
-                                val point = mapToCanvas(currentStrokePoints[i])
-                                path.lineTo(point.x, point.y)
-                            }
-                            drawPath(
-                                path = path,
-                                color = Color.White,
-                                style = Stroke(
-                                    width = brushSize,
-                                    cap = StrokeCap.Round,
-                                    join = StrokeJoin.Round
-                                )
+                    }
+
+                    // Floating Live Eraser Cursor Circle Overlay (Screen space)
+                    activePointerPos?.let { pos ->
+                        Canvas(modifier = Modifier.fillMaxSize()) {
+                            drawCircle(
+                                color = Color(0xCCFF3D00),
+                                radius = brushSize / 2f,
+                                center = pos,
+                                style = Stroke(width = 2.dp.toPx())
                             )
-                        } else if (currentStrokePoints.size == 1) {
-                            val point = mapToCanvas(currentStrokePoints[0])
                             drawCircle(
                                 color = Color.White,
-                                radius = brushSize / 2f,
-                                center = point
+                                radius = brushSize / 2f - 1.dp.toPx(),
+                                center = pos,
+                                style = Stroke(width = 1.dp.toPx())
                             )
+                        }
+                    }
+
+                    // Floating Zoom Info Badge and Reset Zoom Control
+                    if (zoomScale > 1.05f) {
+                        Surface(
+                            shape = RoundedCornerShape(20.dp),
+                            color = Color.Black.copy(alpha = 0.8f),
+                            contentColor = Color.White,
+                            shadowElevation = 6.dp,
+                            modifier = Modifier
+                                .align(Alignment.TopEnd)
+                                .padding(12.dp)
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                            ) {
+                                Text(
+                                    text = "${(zoomScale * 100).toInt()}% Zoom",
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = "Reset",
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .clickable {
+                                            zoomScale = 1f
+                                            panOffsetX = 0f
+                                            panOffsetY = 0f
+                                        }
+                                        .padding(horizontal = 4.dp, vertical = 2.dp)
+                                )
+                            }
                         }
                     }
                 }

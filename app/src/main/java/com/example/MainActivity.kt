@@ -76,20 +76,45 @@ class MainActivity : FragmentActivity() {
                 composable("home") {
                     HomeScreen(
                         viewModel = viewModel,
-                        onNavigateToDetail = { id ->
-                            navController.navigate("detail/$id")
+                        onNavigateToViewer = { id ->
+                            navController.navigate("viewer/$id")
+                        },
+                        onNavigateToEditor = { id ->
+                            navController.navigate("editor/$id")
                         },
                         onNavigateToSettings = {
                             navController.navigate("settings")
                         }
                     )
                 }
-                composable("detail/{documentId}") { backStackEntry ->
+                composable("viewer/{documentId}") { backStackEntry ->
                     val documentId = backStackEntry.arguments?.getString("documentId") ?: return@composable
-                    DocumentDetailScreen(
+                    com.example.ui.screens.PdfViewerScreen(
+                        documentId = documentId,
+                        viewModel = viewModel,
+                        onNavigateBack = { navController.popBackStack() },
+                        onNavigateToEditor = { id ->
+                            navController.navigate("editor/$id")
+                        }
+                    )
+                }
+                composable("editor/{documentId}") { backStackEntry ->
+                    val documentId = backStackEntry.arguments?.getString("documentId") ?: return@composable
+                    com.example.ui.screens.DocumentEditorScreen(
                         documentId = documentId,
                         viewModel = viewModel,
                         onNavigateBack = { navController.popBackStack() }
+                    )
+                }
+                composable("detail/{documentId}") { backStackEntry ->
+                    val documentId = backStackEntry.arguments?.getString("documentId") ?: return@composable
+                    com.example.ui.screens.PdfViewerScreen(
+                        documentId = documentId,
+                        viewModel = viewModel,
+                        onNavigateBack = { navController.popBackStack() },
+                        onNavigateToEditor = { id ->
+                            navController.navigate("editor/$id")
+                        }
                     )
                 }
                 composable("settings") {

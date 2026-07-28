@@ -260,7 +260,7 @@ fun SignaturePasteOverlayEditor(
                 Surface(
                     tonalElevation = 8.dp,
                     shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth().navigationBarsPadding()
                 ) {
                     Column(
                         modifier = Modifier

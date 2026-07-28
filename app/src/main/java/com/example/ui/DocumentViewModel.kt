@@ -934,4 +934,39 @@ class DocumentViewModel(application: Application) : AndroidViewModel(application
             }
         }
     }
+
+    fun rebuildPdfForDocument(document: DocumentEntity, onComplete: (() -> Unit)? = null) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val imagePaths = document.imagePaths.split(",").filter { it.isNotBlank() }
+                if (imagePaths.isNotEmpty()) {
+                    val pdfFile = File(getApplication<android.app.Application>().filesDir, "pdf_${document.id}.pdf")
+                    val pdfDocument = android.graphics.pdf.PdfDocument()
+                    imagePaths.forEachIndexed { index, path ->
+                        val file = File(path)
+                        if (file.exists()) {
+                            val bitmap = android.graphics.BitmapFactory.decodeFile(path)
+                            if (bitmap != null) {
+                                val pageInfo = android.graphics.pdf.PdfDocument.PageInfo.Builder(bitmap.width, bitmap.height, index + 1).create()
+                                val page = pdfDocument.startPage(pageInfo)
+                                page.canvas.drawBitmap(bitmap, 0f, 0f, null)
+                                pdfDocument.finishPage(page)
+                            }
+                        }
+                    }
+                    pdfFile.outputStream().use { out ->
+                        pdfDocument.writeTo(out)
+                    }
+                    pdfDocument.close()
+                    val updated = document.copy(pdfPath = pdfFile.absolutePath, sizeBytes = pdfFile.length())
+                    repository.updateDocument(updated)
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+            withContext(Dispatchers.Main) {
+                onComplete?.invoke()
+            }
+        }
+    }
 }

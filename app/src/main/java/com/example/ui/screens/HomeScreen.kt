@@ -59,7 +59,9 @@ import java.util.*
 @Composable
 fun HomeScreen(
     viewModel: DocumentViewModel,
-    onNavigateToDetail: (String) -> Unit,
+    onNavigateToDetail: (String) -> Unit = {},
+    onNavigateToViewer: (String) -> Unit = onNavigateToDetail,
+    onNavigateToEditor: (String) -> Unit = onNavigateToDetail,
     onNavigateToSettings: () -> Unit
 ) {
     val context = LocalContext.current
@@ -1387,7 +1389,12 @@ fun HomeScreen(
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         bottomBar = {
-            Column {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(Color(0xFF0D47A1))
+                    .navigationBarsPadding()
+            ) {
                 com.example.ui.components.BannerAd()
                 BottomNavigationBar(currentTab = currentTab, onTabSelected = { currentTab = it }, onNavigateToSettings = onNavigateToSettings)
             }
@@ -1602,7 +1609,8 @@ fun HomeScreen(
                         items(filteredDocs) { doc ->
                             DocumentListItem(
                                 document = doc,
-                                onClick = { onNavigateToDetail(doc.id) },
+                                onClick = { onNavigateToViewer(doc.id) },
+                                onEditClick = { onNavigateToEditor(doc.id) },
                                 onDeleteClick = { viewModel.moveToTrash(doc.id) },
                                 onMoveClick = { documentToMove = doc },
                                 onRenameClick = { documentToRename = doc },
@@ -1820,13 +1828,14 @@ fun FolderItem(
 fun DocumentListItem(
     document: DocumentEntity,
     onClick: () -> Unit,
+    onEditClick: () -> Unit = onClick,
     onDeleteClick: () -> Unit,
     onMoveClick: () -> Unit,
     onRenameClick: () -> Unit,
     onAddSignatureClick: () -> Unit = {},
     onShareClick: () -> Unit
 ) {
-    val firstImagePath = document.imagePaths.split(",").firstOrNull()
+    val firstImagePath = document.imagePaths.split(",").firstOrNull { it.isNotBlank() }
     var showMenu by remember { mutableStateOf(false) }
 
     Row(
@@ -1882,7 +1891,7 @@ fun DocumentListItem(
             val sizeMb = if (document.sizeBytes > 0) String.format(Locale.US, "%.1f MB", document.sizeBytes / 1024.0 / 1024.0) else "Unknown"
             Text(
                 text = "$dateStr • $sizeMb",
-                color = Color.White,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 fontSize = 12.sp
             )
         }
@@ -1893,7 +1902,7 @@ fun DocumentListItem(
                 Icon(
                     Icons.Default.MoreVert,
                     contentDescription = "Options",
-                    tint = Color.White
+                    tint = MaterialTheme.colorScheme.onSurface
                 )
             }
             DropdownMenu(
@@ -1901,12 +1910,20 @@ fun DocumentListItem(
                 onDismissRequest = { showMenu = false }
             ) {
                 DropdownMenuItem(
-                    text = { Text("Edit") },
+                    text = { Text("View PDF") },
                     onClick = {
                         showMenu = false
                         onClick()
                     },
-                    leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null) }
+                    leadingIcon = { Icon(Icons.Default.Visibility, contentDescription = null) }
+                )
+                DropdownMenuItem(
+                    text = { Text("Edit Document") },
+                    onClick = {
+                        showMenu = false
+                        onEditClick()
+                    },
+                    leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null, tint = MaterialTheme.colorScheme.primary) }
                 )
                 DropdownMenuItem(
                     text = { Text("Add / Paste Signature") },
@@ -1958,7 +1975,6 @@ fun BottomNavigationBar(currentTab: String, onTabSelected: (String) -> Unit, onN
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .height(80.dp)
             .shadow(elevation = 16.dp, shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp))
             .clip(RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp))
             .background(
@@ -1966,7 +1982,7 @@ fun BottomNavigationBar(currentTab: String, onTabSelected: (String) -> Unit, onN
                     colors = listOf(Color(0xFF1976D2), Color(0xFF0D47A1))
                 )
             )
-            .padding(bottom = 8.dp),
+            .padding(vertical = 8.dp),
         horizontalArrangement = Arrangement.SpaceAround,
         verticalAlignment = Alignment.CenterVertically
     ) {

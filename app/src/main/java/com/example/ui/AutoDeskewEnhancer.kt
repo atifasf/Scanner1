@@ -314,7 +314,8 @@ object AutoDeskewEnhancer {
      */
     fun enhanceDocument(bitmap: Bitmap, mode: EnhancementMode): Bitmap {
         if (mode == EnhancementMode.ORIGINAL) {
-            return ImageEnhancer.enhanceBitmap(bitmap)
+            val contrastEnhanced = ImageEnhancer.enhanceBitmap(bitmap)
+            return ImageEnhancer.deblurAndSharpenText(contrastEnhanced, amount = 0.6f)
         }
 
         val width = bitmap.width
@@ -419,6 +420,9 @@ object AutoDeskewEnhancer {
         }
 
         output.setPixels(pixels, 0, width, 0, 0, width, height)
-        return output
+        // Apply text edge deblurring and unsharp sharpening pass
+        val sharpened = ImageEnhancer.deblurAndSharpenText(output, amount = 0.65f)
+        output.recycle()
+        return sharpened
     }
 }
