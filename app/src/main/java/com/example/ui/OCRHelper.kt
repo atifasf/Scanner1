@@ -35,8 +35,8 @@ object OCRHelper {
         onSuccess: (String) -> Unit,
         onError: (Exception) -> Unit
     ) {
-        if (languageCode == "ur") {
-            // For Urdu/Arabic script, we use Gemini API for accurate, high-quality multimodal OCR
+        if (languageCode != "en") {
+            // For non-English scripts (Urdu, Arabic, Chinese, Hindi, Japanese, Russian, Spanish, French, German), use Gemini Flash API for accurate multimodal OCR
             val scope = CoroutineScope(Dispatchers.IO)
             scope.launch {
                 try {
@@ -58,6 +58,19 @@ object OCRHelper {
 
                     val url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=$apiKey"
 
+                    val langName = when (languageCode) {
+                        "ur" -> "Urdu"
+                        "ar" -> "Arabic"
+                        "es" -> "Spanish"
+                        "fr" -> "French"
+                        "de" -> "German"
+                        "zh" -> "Chinese"
+                        "hi" -> "Hindi"
+                        "ru" -> "Russian"
+                        "ja" -> "Japanese"
+                        else -> "English"
+                    }
+
                     // Create JSON Request
                     val requestJson = JSONObject()
                     val contentsArray = org.json.JSONArray()
@@ -65,7 +78,7 @@ object OCRHelper {
                     val partsArray = org.json.JSONArray()
 
                     val textPart = JSONObject()
-                    textPart.put("text", "Extract and output only the Urdu text from this image. Do not translate. Output only the exact words found in the image. No commentary, no explanations, no preamble, and no markdown formatting.")
+                    textPart.put("text", "Extract and output only the $langName text from this image. Do not translate. Output only the exact words found in the image. No commentary, no explanations, no preamble, and no markdown formatting.")
 
                     val imagePart = JSONObject()
                     val inlineData = JSONObject()

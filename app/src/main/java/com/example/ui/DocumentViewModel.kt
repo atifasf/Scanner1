@@ -405,7 +405,7 @@ class DocumentViewModel(application: Application) : AndroidViewModel(application
                             val inputImage = InputImage.fromFilePath(app, uri)
                             val recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
                             
-                            val visionText = if (ocrLanguage == "ur") {
+                            val visionText = if (ocrLanguage != "en") {
                                 null
                             } else {
                                 try {
@@ -658,10 +658,23 @@ class DocumentViewModel(application: Application) : AndroidViewModel(application
 
                 val url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=$apiKey"
 
-                val prompt = if (languageCode == "ur") {
-                    "Extract and output only the Urdu text from this image. Do not translate. Output only the exact words found in the image. No commentary, no explanations, no preamble, and no markdown formatting."
-                } else {
+                val langName = when (languageCode) {
+                    "ur" -> "Urdu"
+                    "ar" -> "Arabic"
+                    "es" -> "Spanish"
+                    "fr" -> "French"
+                    "de" -> "German"
+                    "zh" -> "Chinese"
+                    "hi" -> "Hindi"
+                    "ru" -> "Russian"
+                    "ja" -> "Japanese"
+                    else -> "English"
+                }
+
+                val prompt = if (languageCode == "en") {
                     "Extract and output only the text from this image. Do not translate. Output only the exact words found in the image. No commentary, no explanations, no preamble, and no markdown formatting."
+                } else {
+                    "Extract and output only the $langName text from this image. Do not translate. Output only the exact words found in the image. No commentary, no explanations, no preamble, and no markdown formatting."
                 }
 
                 val requestJson = JSONObject()
@@ -714,7 +727,7 @@ class DocumentViewModel(application: Application) : AndroidViewModel(application
         val ocrLanguage = context.getSharedPreferences("settings", Context.MODE_PRIVATE).getString("ocr_language", "en") ?: "en"
         var text: String? = null
         
-        if (ocrLanguage != "ur") {
+        if (ocrLanguage == "en") {
             try {
                 val inputImage = InputImage.fromFilePath(context, uri)
                 val recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
@@ -815,7 +828,7 @@ class DocumentViewModel(application: Application) : AndroidViewModel(application
                     savedImages.add(imageFile.absolutePath)
                     
                     var pageText: String? = null
-                    if (ocrLanguage != "ur") {
+                    if (ocrLanguage == "en") {
                         val inputImage = InputImage.fromFilePath(app, Uri.fromFile(imageFile))
                         val recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
                         try {

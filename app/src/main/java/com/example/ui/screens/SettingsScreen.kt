@@ -21,6 +21,70 @@ import androidx.activity.result.contract.ActivityResultContracts
 import com.example.ui.BackupHelper
 import com.example.BuildConfig
 
+data class OcrLangOption(val code: String, val name: String)
+
+val topLanguages = listOf(
+    OcrLangOption("en", "English"),
+    OcrLangOption("ur", "Urdu (اردو)"),
+    OcrLangOption("ar", "Arabic (العربية)"),
+    OcrLangOption("es", "Spanish (Español)"),
+    OcrLangOption("fr", "French (Français)"),
+    OcrLangOption("de", "German (Deutsch)"),
+    OcrLangOption("zh", "Chinese (中文)"),
+    OcrLangOption("hi", "Hindi (हिन्दी)"),
+    OcrLangOption("ru", "Russian (Русский)"),
+    OcrLangOption("ja", "Japanese (日本語)")
+)
+
+private fun calculateCacheSize(context: Context): Long {
+    var size = 0L
+    fun getDirSize(dir: java.io.File?) {
+        if (dir == null || !dir.exists()) return
+        val files = dir.listFiles() ?: return
+        for (f in files) {
+            if (f.isDirectory) {
+                getDirSize(f)
+            } else {
+                size += f.length()
+            }
+        }
+    }
+    getDirSize(context.cacheDir)
+    getDirSize(context.externalCacheDir)
+    return size
+}
+
+private fun formatSize(bytes: Long): String {
+    val mb = bytes.toDouble() / (1024 * 1024)
+    return String.format("%.2f MB", mb)
+}
+
+private fun performClearCache(context: Context): Long {
+    var freed = 0L
+    fun deleteDir(dir: java.io.File?) {
+        if (dir == null || !dir.exists()) return
+        val files = dir.listFiles() ?: return
+        for (f in files) {
+            if (f.isDirectory) {
+                deleteDir(f)
+                f.delete()
+            } else {
+                freed += f.length()
+                f.delete()
+            }
+        }
+    }
+    deleteDir(context.cacheDir)
+    deleteDir(context.externalCacheDir)
+    try {
+        coil.Coil.imageLoader(context).diskCache?.clear()
+        coil.Coil.imageLoader(context).memoryCache?.clear()
+    } catch (e: Exception) {
+        e.printStackTrace()
+    }
+    return freed
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(
@@ -31,10 +95,11 @@ fun SettingsScreen(
     val coroutineScope = rememberCoroutineScope()
     val sharedPrefs = remember { context.getSharedPreferences("settings", Context.MODE_PRIVATE) }
     
-    var isDarkTheme by remember { mutableStateOf(sharedPrefs.getBoolean("dark_theme", false)) }
+    var isDarkTheme by remember { mutableStateOf(sharedPrefs.getBoolean("dark_theme", true)) }
     var autoOcr by remember { mutableStateOf(sharedPrefs.getBoolean("auto_ocr", false)) }
     var ocrLanguage by remember { mutableStateOf(sharedPrefs.getString("ocr_language", "en") ?: "en") }
     var showLanguageDialog by remember { mutableStateOf(false) }
+    var cacheSizeText by remember { mutableStateOf(formatSize(calculateCacheSize(context))) }
 
     val exportLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.CreateDocument("application/zip")
@@ -82,6 +147,7 @@ fun SettingsScreen(
             Text("Appearance", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(16.dp, 8.dp))
             ListItem(
                 headlineContent = { Text("Dark Theme") },
+                supportingContent = { Text(if (isDarkTheme) "Dark theme enabled by default" else "Light theme enabled") },
                 trailingContent = {
                     Switch(checked = isDarkTheme, onCheckedChange = { 
                         isDarkTheme = it
@@ -103,7 +169,7 @@ fun SettingsScreen(
             )
             ListItem(
                 headlineContent = { Text("OCR Language") },
-                supportingContent = { Text(if (ocrLanguage == "ur") "Urdu (اردو)" else "English") },
+                supportingContent = { Text(topLanguages.find { it.code == ocrLanguage }?.name ?: "English") },
                 modifier = Modifier.clickable { showLanguageDialog = true }
             )
             HorizontalDivider()
@@ -113,44 +179,35 @@ fun SettingsScreen(
                     onDismissRequest = { showLanguageDialog = false },
                     title = { Text("Select OCR Language") },
                     text = {
-                        Column {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable {
-                                        ocrLanguage = "en"
-                                        sharedPrefs.edit().putString("ocr_language", "en").apply()
-                                        showLanguageDialog = false
-                                    }
-                                    .padding(vertical = 12.dp, horizontal = 16.dp),
-                                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
-                            ) {
-                                RadioButton(selected = ocrLanguage == "en", onClick = {
-                                    ocrLanguage = "en"
-                                    sharedPrefs.edit().putString("ocr_language", "en").apply()
-                                    showLanguageDialog = false
-                                })
-                                Spacer(modifier = Modifier.width(16.dp))
-                                Text("English")
-                            }
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable {
-                                        ocrLanguage = "ur"
-                                        sharedPrefs.edit().putString("ocr_language", "ur").apply()
-                                        showLanguageDialog = false
-                                    }
-                                    .padding(vertical = 12.dp, horizontal = 16.dp),
-                                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
-                            ) {
-                                RadioButton(selected = ocrLanguage == "ur", onClick = {
-                                    ocrLanguage = "ur"
-                                    sharedPrefs.edit().putString("ocr_language", "ur").apply()
-                                    showLanguageDialog = false
-                                })
-                                Spacer(modifier = Modifier.width(16.dp))
-                                Text("Urdu (اردو)")
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .heightIn(max = 350.dp)
+                                .verticalScroll(rememberScrollState())
+                        ) {
+                            topLanguages.forEach { lang ->
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable {
+                                            ocrLanguage = lang.code
+                                            sharedPrefs.edit().putString("ocr_language", lang.code).apply()
+                                            showLanguageDialog = false
+                                        }
+                                        .padding(vertical = 10.dp, horizontal = 12.dp),
+                                    verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+                                ) {
+                                    RadioButton(
+                                        selected = ocrLanguage == lang.code,
+                                        onClick = {
+                                            ocrLanguage = lang.code
+                                            sharedPrefs.edit().putString("ocr_language", lang.code).apply()
+                                            showLanguageDialog = false
+                                        }
+                                    )
+                                    Spacer(modifier = Modifier.width(12.dp))
+                                    Text(lang.name, style = MaterialTheme.typography.bodyMedium)
+                                }
                             }
                         }
                     },
@@ -168,7 +225,16 @@ fun SettingsScreen(
             HorizontalDivider()
 
             Text("Storage", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(16.dp, 8.dp))
-            ListItem(headlineContent = { Text("Clear Cache") })
+            ListItem(
+                headlineContent = { Text("Clear Cache") },
+                supportingContent = { Text("Cache size: $cacheSizeText (Tap to clear)") },
+                modifier = Modifier.clickable {
+                    val freedBytes = performClearCache(context)
+                    val freedText = formatSize(freedBytes)
+                    cacheSizeText = formatSize(calculateCacheSize(context))
+                    Toast.makeText(context, "Cache cleared successfully ($freedText freed)", Toast.LENGTH_SHORT).show()
+                }
+            )
             HorizontalDivider()
 
             Text("About", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(16.dp, 8.dp))

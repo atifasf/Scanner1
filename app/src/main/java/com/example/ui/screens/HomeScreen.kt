@@ -9,10 +9,12 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.rememberScrollState
@@ -404,6 +406,7 @@ fun HomeScreen(
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
+                        .verticalScroll(rememberScrollState())
                         .padding(vertical = 8.dp),
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
@@ -554,53 +557,57 @@ fun HomeScreen(
                         ) {
                             scannedImageUris?.forEachIndexed { index, uri ->
                                 val file = File(uri.path ?: "")
-                                Box(
+                                Surface(
+                                    shape = RoundedCornerShape(10.dp),
+                                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+                                    color = MaterialTheme.colorScheme.surfaceVariant,
                                     modifier = Modifier
                                         .size(width = 90.dp, height = 120.dp)
-                                        .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(8.dp))
-                                        .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(8.dp))
-                                        .clip(RoundedCornerShape(8.dp))
                                         .clickable {
                                             editingFile = file
                                             editingPageIndex = index
-                                        },
-                                    contentAlignment = Alignment.BottomCenter
+                                        }
                                 ) {
-                                    AsyncImage(
-                                        model = remember(file, scannedImagesRefreshTrigger) {
-                                            coil.request.ImageRequest.Builder(context)
-                                                .data(file)
-                                                .memoryCachePolicy(coil.request.CachePolicy.DISABLED)
-                                                .build()
-                                        },
-                                        contentDescription = null,
-                                        contentScale = ContentScale.Crop,
-                                        modifier = Modifier.fillMaxSize()
-                                    )
-                                    
                                     Box(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .background(Color.Black.copy(alpha = 0.6f))
-                                            .padding(vertical = 4.dp),
-                                        contentAlignment = Alignment.Center
+                                        modifier = Modifier.fillMaxSize(),
+                                        contentAlignment = Alignment.BottomCenter
                                     ) {
-                                        Row(
-                                            verticalAlignment = Alignment.CenterVertically,
-                                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                        AsyncImage(
+                                            model = remember(file, scannedImagesRefreshTrigger) {
+                                                coil.request.ImageRequest.Builder(context)
+                                                    .data(file)
+                                                    .memoryCachePolicy(coil.request.CachePolicy.DISABLED)
+                                                    .build()
+                                            },
+                                            contentDescription = null,
+                                            contentScale = ContentScale.Crop,
+                                            modifier = Modifier.fillMaxSize()
+                                        )
+                                        
+                                        Surface(
+                                            color = Color.Black.copy(alpha = 0.75f),
+                                            shape = RoundedCornerShape(8.dp),
+                                            modifier = Modifier
+                                                .padding(6.dp)
                                         ) {
-                                            Icon(
-                                                imageVector = Icons.Default.Gesture,
-                                                contentDescription = "Eraser",
-                                                tint = Color.White,
-                                                modifier = Modifier.size(12.dp)
-                                            )
-                                            Text(
-                                                text = "Eraser",
-                                                color = Color.White,
-                                                fontSize = 10.sp,
-                                                fontWeight = FontWeight.Bold
-                                            )
+                                            Row(
+                                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Default.Gesture,
+                                                    contentDescription = "Eraser",
+                                                    tint = Color.White,
+                                                    modifier = Modifier.size(12.dp)
+                                                )
+                                                Text(
+                                                    text = "Eraser",
+                                                    color = Color.White,
+                                                    fontSize = 10.sp,
+                                                    fontWeight = FontWeight.Bold
+                                                )
+                                            }
                                         }
                                     }
                                 }
@@ -828,35 +835,6 @@ fun HomeScreen(
                                         )
                                     }
                                 }
-                            }
-                        }
-                        
-                        if (selectedFormat == com.example.ui.DocumentViewModel.OutputFormat.PDF) {
-                            HorizontalDivider()
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable { isSearchablePdf = !isSearchablePdf }
-                                    .padding(vertical = 4.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(
-                                        text = "Searchable PDF (OCR)",
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        fontWeight = FontWeight.SemiBold
-                                    )
-                                    Text(
-                                        text = "Make text in the PDF selectable and searchable.",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = Color.White
-                                    )
-                                }
-                                Switch(
-                                    checked = isSearchablePdf,
-                                    onCheckedChange = { isSearchablePdf = it }
-                                )
                             }
                         }
                         

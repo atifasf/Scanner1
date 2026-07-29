@@ -52,12 +52,12 @@ class MainActivity : FragmentActivity() {
     setContent {
             val context = LocalContext.current
             val sharedPrefs = remember<SharedPreferences> { context.getSharedPreferences("settings", Context.MODE_PRIVATE) }
-            var isDarkTheme by remember { mutableStateOf(sharedPrefs.getBoolean("dark_theme", false)) }
+            var isDarkTheme by remember { mutableStateOf(sharedPrefs.getBoolean("dark_theme", true)) }
             
             androidx.compose.runtime.DisposableEffect(sharedPrefs) {
                 val listener = SharedPreferences.OnSharedPreferenceChangeListener { prefs, key ->
                     if (key == "dark_theme") {
-                        isDarkTheme = prefs.getBoolean("dark_theme", false)
+                        isDarkTheme = prefs.getBoolean("dark_theme", true)
                     }
                 }
                 sharedPrefs.registerOnSharedPreferenceChangeListener(listener)
