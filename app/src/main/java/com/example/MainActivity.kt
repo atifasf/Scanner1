@@ -47,6 +47,9 @@ class MainActivity : FragmentActivity() {
     handler.postDelayed({ createWebViewCacheDirs() }, 5000)
 
     MobileAds.initialize(this) {}
+    
+    saveSampleDocumentToGallery()
+    
     enableEdgeToEdge()
     
     setContent {
@@ -132,6 +135,34 @@ class MainActivity : FragmentActivity() {
             }
         }
       }
+    }
+  }
+
+  private fun saveSampleDocumentToGallery() {
+    val sharedPrefs = getSharedPreferences("app_prefs", android.content.Context.MODE_PRIVATE)
+    if (sharedPrefs.getBoolean("sample_copied", false)) return
+    
+    try {
+        val bitmap = android.graphics.BitmapFactory.decodeResource(resources, R.drawable.sample_document_1785494628157)
+        val resolver = contentResolver
+        val contentValues = android.content.ContentValues().apply {
+            put(android.provider.MediaStore.MediaColumns.DISPLAY_NAME, "sample_document.jpg")
+            put(android.provider.MediaStore.MediaColumns.MIME_TYPE, "image/jpeg")
+            put(android.provider.MediaStore.MediaColumns.RELATIVE_PATH, android.os.Environment.DIRECTORY_PICTURES + "/DocScanner")
+        }
+        val uri = resolver.insert(android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI, contentValues)
+        if (uri != null) {
+            resolver.openOutputStream(uri)?.use {
+                bitmap.compress(android.graphics.Bitmap.CompressFormat.JPEG, 100, it)
+            }
+            sharedPrefs.edit().putBoolean("sample_copied", true).apply()
+            // Toast not strictly needed, but let's show one
+            android.os.Handler(android.os.Looper.getMainLooper()).post {
+                android.widget.Toast.makeText(this, "Sample document added to Gallery!", android.widget.Toast.LENGTH_LONG).show()
+            }
+        }
+    } catch (e: Exception) {
+        e.printStackTrace()
     }
   }
 

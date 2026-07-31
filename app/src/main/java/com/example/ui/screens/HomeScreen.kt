@@ -32,6 +32,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.shadow
@@ -1379,20 +1380,54 @@ fun HomeScreen(
         },
         floatingActionButton = {
             if (currentTab == "Home") {
-                FloatingActionButton(
-                    elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 8.dp, pressedElevation = 4.dp),
-                    onClick = {
-                        val activity = generateSequence(context) { (it as? android.content.ContextWrapper)?.baseContext }.filterIsInstance<Activity>().firstOrNull()
-                        if (activity != null) {
-                            ScannerHelper.startScan(activity, scannerLauncher)
-                        }
-                    },
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    contentColor = Color.White,
-                    shape = RoundedCornerShape(24.dp),
-                    modifier = Modifier.size(64.dp)
+                val interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
+                val isPressed by interactionSource.collectIsPressedAsState()
+                val yOffset by androidx.compose.animation.core.animateDpAsState(if (isPressed) 6.dp else 0.dp)
+
+                Box(
+                    modifier = Modifier
+                        .size(72.dp)
+                        .clickable(
+                            interactionSource = interactionSource,
+                            indication = null,
+                            onClick = {
+                                val activity = generateSequence(context) { (it as? android.content.ContextWrapper)?.baseContext }.filterIsInstance<Activity>().firstOrNull()
+                                if (activity != null) {
+                                    ScannerHelper.startScan(activity, scannerLauncher)
+                                }
+                            }
+                        ),
+                    contentAlignment = Alignment.Center
                 ) {
-                    Icon(Icons.Default.PhotoCamera, contentDescription = "Scan", modifier = Modifier.size(32.dp))
+                    // Shadow / Base for 3D effect
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .offset(y = 6.dp)
+                            .background(Color(0xFF0D47A1), RoundedCornerShape(24.dp))
+                    )
+                    // Top Surface
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .offset(y = yOffset)
+                            .shadow(if (isPressed) 0.dp else 4.dp, RoundedCornerShape(24.dp))
+                            .background(
+                                brush = androidx.compose.ui.graphics.Brush.verticalGradient(
+                                    colors = listOf(Color(0xFF42A5F5), Color(0xFF1565C0))
+                                ),
+                                shape = RoundedCornerShape(24.dp)
+                            )
+                            .border(1.dp, Color(0xFF90CAF9), RoundedCornerShape(24.dp)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.PhotoCamera,
+                            contentDescription = "Scan",
+                            tint = Color.White,
+                            modifier = Modifier.size(36.dp)
+                        )
+                    }
                 }
             }
         }
