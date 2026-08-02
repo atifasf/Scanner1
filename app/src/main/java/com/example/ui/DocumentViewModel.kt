@@ -92,6 +92,41 @@ class DocumentViewModel(application: Application) : AndroidViewModel(application
         _searchQuery.value = query
     }
 
+    
+    suspend fun addImagesToDocument(documentId: String, newImagePaths: List<String>) {
+        val doc = getDocumentById(documentId) ?: return
+        
+        val allImages = doc.imagePaths.split(",").filter { it.isNotEmpty() }.toMutableList()
+        allImages.addAll(newImagePaths)
+        
+        // Re-generate the PDF file if it's a PDF
+        var newPdfPath = doc.pdfPath
+        if (newPdfPath != null && newPdfPath.endsWith(".pdf")) {
+            val app = getApplication<android.app.Application>()
+            val pdfFile = java.io.File(newPdfPath)
+            try {
+                val pdfDocument = android.graphics.pdf.PdfDocument()
+                allImages.forEachIndexed { index, imagePath ->
+                    val bitmap = android.graphics.BitmapFactory.decodeFile(imagePath)
+                    if (bitmap != null) {
+                        val pageInfo = android.graphics.pdf.PdfDocument.PageInfo.Builder(bitmap.width, bitmap.height, index + 1).create()
+                        val page = pdfDocument.startPage(pageInfo)
+                        page.canvas.drawBitmap(bitmap, 0f, 0f, null)
+                        pdfDocument.finishPage(page)
+                        bitmap.recycle()
+                    }
+                }
+                pdfDocument.writeTo(pdfFile.outputStream())
+                pdfDocument.close()
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+        
+        val updatedDoc = doc.copy(imagePaths = allImages.joinToString(","))
+        updateDocument(updatedDoc)
+    }
+
     suspend fun getDocumentById(id: String): DocumentEntity? {
         return repository.getDocumentById(id)
     }
@@ -158,6 +193,7 @@ class DocumentViewModel(application: Application) : AndroidViewModel(application
         isIdCardGrid: Boolean = false,
         textDarkness: Float = 0f,
         backgroundClarity: Float = 0f,
+        sharpness: Float = 0f,
         enableAutoDeskew: Boolean = false,
         onComplete: (com.example.data.DocumentEntity) -> Unit
     ) {
@@ -171,7 +207,15 @@ class DocumentViewModel(application: Application) : AndroidViewModel(application
             imageUris.forEachIndexed { index, uri ->
                 val file = File(app.filesDir, "img_${id}_$index.jpg")
                 try {
-                    val options = BitmapFactory.Options()
+                    if (textDarkness == 0f && backgroundClarity == 0f && sharpness == 0f && !enableAutoDeskew) {
+                        // Skip all processing and keep perfect ML Kit quality!
+                        app.contentResolver.openInputStream(uri)?.use { input ->
+                            file.outputStream().use { output ->
+                                input.copyTo(output)
+                            }
+                        }
+                    } else {
+                        val options = BitmapFactory.Options()
                     options.inJustDecodeBounds = true
                     var inputStream = app.contentResolver.openInputStream(uri)
                     BitmapFactory.decodeStream(inputStream, null, options)
@@ -211,11 +255,12 @@ class DocumentViewModel(application: Application) : AndroidViewModel(application
                             enableAutoDeskew = enableAutoDeskew
                         )
                         
-                        if (textDarkness > 0f || backgroundClarity > 0f) {
-                            val filtered = com.example.ui.ImageEnhancer.applyTextDarknessAndBackgroundClarity(
+                        if (textDarkness > 0f || backgroundClarity > 0f || sharpness > 0f) {
+                            val filtered = com.example.ui.ImageEnhancer.applyImageAdjustments(
                                 enhanced,
                                 textDarkness,
-                                backgroundClarity
+                                backgroundClarity,
+                                sharpness
                             )
                             if (filtered != enhanced) {
                                 if (enhanced != resized && enhanced != originalBitmap) {
@@ -239,6 +284,7 @@ class DocumentViewModel(application: Application) : AndroidViewModel(application
                                 input.copyTo(output)
                             }
                         }
+                    }
                     }
                 } catch (e: Exception) {
                     e.printStackTrace()
@@ -672,9 +718,9 @@ class DocumentViewModel(application: Application) : AndroidViewModel(application
                 }
 
                 val prompt = if (languageCode == "en") {
-                    "Extract and output only the text from this image. Do not translate. Output only the exact words found in the image. No commentary, no explanations, no preamble, and no markdown formatting."
+                    "Extract all text from this image, preserving the original structure, paragraphs, headings, and lists. Do not translate. Output only the exact words found in the image. Ensure the output is well-formatted for a text document. Do not include any commentary, explanations, preamble, or markdown code blocks (like ```)."
                 } else {
-                    "Extract and output only the $langName text from this image. Do not translate. Output only the exact words found in the image. No commentary, no explanations, no preamble, and no markdown formatting."
+                    "Extract all $langName text from this image, preserving the original structure, paragraphs, headings, and lists. Do not translate. Output only the exact words found in the image. Ensure the output is well-formatted for a text document. Do not include any commentary, explanations, preamble, or markdown code blocks (like ```)."
                 }
 
                 val requestJson = JSONObject()

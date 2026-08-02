@@ -47,7 +47,7 @@ data class QuadPoints(
 }
 
 enum class EnhancementMode {
-    MAGIC_COLOR,    // CamScanner style: background whitened, text sharpened, shadows reduced
+    MAGIC_COLOR,    // Enhanced style: background whitened, text sharpened, shadows reduced
     BLACK_AND_WHITE,// Crisp B&W
     GRAYSCALE,      // Clean grayscale
     ORIGINAL        // Original color with light contrast boost
@@ -310,7 +310,7 @@ object AutoDeskewEnhancer {
     }
 
     /**
-     * Enhance document with whitening, shadow removal, and text sharpening (CamScanner style).
+     * Enhance document with whitening, shadow removal, and text sharpening (Enhanced style).
      */
     fun enhanceDocument(bitmap: Bitmap, mode: EnhancementMode): Bitmap {
         if (mode == EnhancementMode.ORIGINAL) {

@@ -33,6 +33,12 @@ import coil.request.ImageRequest
 import com.example.data.DocumentEntity
 import com.example.ui.DocumentViewModel
 import java.io.File
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import com.example.ui.ScannerHelper
+import java.util.UUID
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.Dispatchers
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -45,6 +51,68 @@ fun PdfViewerScreen(
     val context = LocalContext.current
     var document by remember { mutableStateOf<DocumentEntity?>(null) }
     var imageRefreshTrigger by remember { mutableIntStateOf(0) }
+    var showAddOptionsDialog by remember { mutableStateOf(false) }
+    val coroutineScope = rememberCoroutineScope()
+
+    val galleryPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetMultipleContents()
+    ) { uris: List<android.net.Uri> ->
+        if (uris.isNotEmpty()) {
+            val id = UUID.randomUUID().toString()
+            val newImagePaths = mutableListOf<String>()
+            uris.forEachIndexed { index, uri ->
+                val file = File(context.cacheDir, "temp_append_gal_${id}_$index.jpg")
+                try {
+                    context.contentResolver.openInputStream(uri)?.use { input ->
+                        file.outputStream().use { output ->
+                            input.copyTo(output)
+                        }
+                    }
+                    newImagePaths.add(file.absolutePath)
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+            }
+            if (newImagePaths.isNotEmpty()) {
+                coroutineScope.launch {
+                    viewModel.addImagesToDocument(documentId, newImagePaths)
+                    document = viewModel.getDocumentById(documentId)
+                    imageRefreshTrigger++
+                }
+            }
+        }
+    }
+
+    val scannerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartIntentSenderForResult()
+    ) { result ->
+        ScannerHelper.handleScanResult(result) { imageUris, pdfUri ->
+            if (imageUris.isNotEmpty()) {
+                val id = UUID.randomUUID().toString()
+                val newImagePaths = mutableListOf<String>()
+                imageUris.forEachIndexed { index, uri ->
+                    val file = File(context.cacheDir, "temp_append_${id}_$index.jpg")
+                    try {
+                        context.contentResolver.openInputStream(uri)?.use { input ->
+                            file.outputStream().use { output ->
+                                input.copyTo(output)
+                            }
+                        }
+                        newImagePaths.add(file.absolutePath)
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                    }
+                }
+                if (newImagePaths.isNotEmpty()) {
+                    coroutineScope.launch {
+                        viewModel.addImagesToDocument(documentId, newImagePaths)
+                        document = viewModel.getDocumentById(documentId)
+                        imageRefreshTrigger++
+                    }
+                }
+            }
+        }
+    }
 
     LaunchedEffect(documentId) {
         document = viewModel.getDocumentById(documentId)
@@ -247,6 +315,16 @@ fun PdfViewerScreen(
                                     }
                                 }
                             }
+                            item {
+                                Button(
+                                    onClick = { showAddOptionsDialog = true },
+                                    modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
+                                ) {
+                                    Icon(Icons.Default.AddPhotoAlternate, contentDescription = "Add Page")
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text("Add Page")
+                                }
+                            }
                         }
                     }
 
@@ -270,5 +348,47 @@ fun PdfViewerScreen(
                 }
             }
         }
+    }
+
+    if (showAddOptionsDialog) {
+        AlertDialog(
+            onDismissRequest = { showAddOptionsDialog = false },
+            title = { Text("Add Page", fontWeight = FontWeight.Bold) },
+            text = { Text("How would you like to add a new page?") },
+            confirmButton = {
+                Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(
+                        onClick = {
+                            showAddOptionsDialog = false
+                            val activity = generateSequence(context) { (it as? android.content.ContextWrapper)?.baseContext }.filterIsInstance<android.app.Activity>().firstOrNull()
+                            if (activity != null) {
+                                ScannerHelper.startScan(activity, scannerLauncher)
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(Icons.Default.PhotoCamera, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Scan with Camera")
+                    }
+                    Button(
+                        onClick = {
+                            showAddOptionsDialog = false
+                            galleryPickerLauncher.launch("image/*")
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(Icons.Default.PhotoLibrary, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Select from Gallery")
+                    }
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showAddOptionsDialog = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
     }
 }

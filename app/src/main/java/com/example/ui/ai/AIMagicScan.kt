@@ -28,7 +28,7 @@ object AIMagicScan {
         ocrText: String? = null
     ): MagicScanResult = withContext(Dispatchers.IO) {
 
-        // Step 1: Detect corners & Perspective Warp & Auto Deskew & CamScanner Whitening
+        // Step 1: Detect corners & Perspective Warp & Auto Deskew & Enhanced Whitening
         val warpedAndDeskewed = AutoDeskewEnhancer.autoProcessDocument(
             context = context,
             original = inputBitmap,

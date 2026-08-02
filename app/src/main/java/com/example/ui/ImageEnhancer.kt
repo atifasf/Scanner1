@@ -109,29 +109,42 @@ object ImageEnhancer {
         return output
     }
 
-    fun applyTextDarknessAndBackgroundClarity(
+    fun applyImageAdjustments(
         original: Bitmap,
         textDarkness: Float,
-        backgroundClarity: Float
+        backgroundClarity: Float,
+        sharpness: Float = 0f
     ): Bitmap {
-        if (textDarkness <= 0f && backgroundClarity <= 0f) return original
+        if (textDarkness <= 0f && backgroundClarity <= 0f && sharpness <= 0f) return original
 
-        val enhanced = Bitmap.createBitmap(original.width, original.height, original.config ?: Bitmap.Config.ARGB_8888)
-        val canvas = Canvas(enhanced)
-        val paint = Paint().apply { isAntiAlias = true }
+        var result = original
 
-        val c = 1f + textDarkness * 1.5f
-        val bVal = 128f * (1f - c) + backgroundClarity * 150f
-        val colorMatrix = ColorMatrix(
-            floatArrayOf(
-                c, 0f, 0f, 0f, bVal,
-                0f, c, 0f, 0f, bVal,
-                0f, 0f, c, 0f, bVal,
-                0f, 0f, 0f, 1f, 0f
+        if (textDarkness > 0f || backgroundClarity > 0f) {
+            val enhanced = Bitmap.createBitmap(original.width, original.height, original.config ?: Bitmap.Config.ARGB_8888)
+            val canvas = Canvas(enhanced)
+            val paint = Paint().apply { isAntiAlias = true }
+
+            val c = 1f + textDarkness * 1.5f
+            val bVal = 128f * (1f - c) + backgroundClarity * 150f
+            val colorMatrix = ColorMatrix(
+                floatArrayOf(
+                    c, 0f, 0f, 0f, bVal,
+                    0f, c, 0f, 0f, bVal,
+                    0f, 0f, c, 0f, bVal,
+                    0f, 0f, 0f, 1f, 0f
+                )
             )
-        )
-        paint.colorFilter = ColorMatrixColorFilter(colorMatrix)
-        canvas.drawBitmap(original, 0f, 0f, paint)
-        return enhanced
+            paint.colorFilter = ColorMatrixColorFilter(colorMatrix)
+            canvas.drawBitmap(original, 0f, 0f, paint)
+            result = enhanced
+        }
+
+        if (sharpness > 0f) {
+            val sharpened = deblurAndSharpenText(result, sharpness * 1.5f)
+            if (result != original) result.recycle()
+            result = sharpened
+        }
+
+        return result
     }
 }

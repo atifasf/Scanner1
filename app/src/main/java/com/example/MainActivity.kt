@@ -37,18 +37,10 @@ class MainActivity : FragmentActivity() {
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
     
-    // Pre-create WebView Code Cache directories to prevent Chromium readdir/opendir errors
-    createWebViewCacheDirs()
-
-    // Also recreate them after a delay of 1, 2, and 5 seconds to ensure they persist after WebView/Chromium initialization clears its caches
-    val handler = android.os.Handler(android.os.Looper.getMainLooper())
-    handler.postDelayed({ createWebViewCacheDirs() }, 1000)
-    handler.postDelayed({ createWebViewCacheDirs() }, 2000)
-    handler.postDelayed({ createWebViewCacheDirs() }, 5000)
 
     MobileAds.initialize(this) {}
     
-    saveSampleDocumentToGallery()
+    // Removed sample document saving
     
     enableEdgeToEdge()
     
@@ -138,56 +130,5 @@ class MainActivity : FragmentActivity() {
     }
   }
 
-  private fun saveSampleDocumentToGallery() {
-    val sharedPrefs = getSharedPreferences("app_prefs", android.content.Context.MODE_PRIVATE)
-    if (sharedPrefs.getBoolean("sample_copied", false)) return
-    
-    try {
-        val bitmap = android.graphics.BitmapFactory.decodeResource(resources, R.drawable.sample_document_1785494628157)
-        val resolver = contentResolver
-        val contentValues = android.content.ContentValues().apply {
-            put(android.provider.MediaStore.MediaColumns.DISPLAY_NAME, "sample_document.jpg")
-            put(android.provider.MediaStore.MediaColumns.MIME_TYPE, "image/jpeg")
-            put(android.provider.MediaStore.MediaColumns.RELATIVE_PATH, android.os.Environment.DIRECTORY_PICTURES + "/DocScanner")
-        }
-        val uri = resolver.insert(android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI, contentValues)
-        if (uri != null) {
-            resolver.openOutputStream(uri)?.use {
-                bitmap.compress(android.graphics.Bitmap.CompressFormat.JPEG, 100, it)
-            }
-            sharedPrefs.edit().putBoolean("sample_copied", true).apply()
-            // Toast not strictly needed, but let's show one
-            android.os.Handler(android.os.Looper.getMainLooper()).post {
-                android.widget.Toast.makeText(this, "Sample document added to Gallery!", android.widget.Toast.LENGTH_LONG).show()
-            }
-        }
-    } catch (e: Exception) {
-        e.printStackTrace()
-    }
-  }
-
-  private fun createWebViewCacheDirs() {
-    try {
-        val jsDir = java.io.File(cacheDir, "WebView/Default/HTTP Cache/Code Cache/js")
-        if (!jsDir.exists()) {
-            jsDir.mkdirs()
-        }
-        val jsPlaceholder = java.io.File(jsDir, ".placeholder")
-        if (!jsPlaceholder.exists()) {
-            jsPlaceholder.createNewFile()
-        }
-        
-        val wasmDir = java.io.File(cacheDir, "WebView/Default/HTTP Cache/Code Cache/wasm")
-        if (!wasmDir.exists()) {
-            wasmDir.mkdirs()
-        }
-        val wasmPlaceholder = java.io.File(wasmDir, ".placeholder")
-        if (!wasmPlaceholder.exists()) {
-            wasmPlaceholder.createNewFile()
-        }
-    } catch (e: Exception) {
-        e.printStackTrace()
-    }
-  }
 }
 

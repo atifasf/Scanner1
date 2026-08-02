@@ -27,6 +27,10 @@ import android.content.ClipData
 import android.content.Context
 import android.widget.Toast
 import com.example.ui.ExportHelper
+import com.example.ui.ScannerHelper
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import java.util.UUID
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 
@@ -47,6 +51,68 @@ fun DocumentDetailScreen(
     var signatureExtractBitmap by remember { mutableStateOf<android.graphics.Bitmap?>(null) }
     var signatureManagerFile by remember { mutableStateOf<File?>(null) }
     var imageRefreshTrigger by remember { mutableStateOf(0) }
+    var showAddOptionsDialog by remember { mutableStateOf(false) }
+
+    val galleryPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetMultipleContents()
+    ) { uris: List<android.net.Uri> ->
+        if (uris.isNotEmpty()) {
+            val id = UUID.randomUUID().toString()
+            val newImagePaths = mutableListOf<String>()
+            uris.forEachIndexed { index, uri ->
+                val file = File(context.cacheDir, "temp_append_gal_${id}_$index.jpg")
+                try {
+                    context.contentResolver.openInputStream(uri)?.use { input ->
+                        file.outputStream().use { output ->
+                            input.copyTo(output)
+                        }
+                    }
+                    newImagePaths.add(file.absolutePath)
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+            }
+            if (newImagePaths.isNotEmpty()) {
+                coroutineScope.launch {
+                    viewModel.addImagesToDocument(documentId, newImagePaths)
+                    document = viewModel.getDocumentById(documentId)
+                    imageRefreshTrigger++
+                }
+            }
+        }
+    }
+
+    
+    val scannerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartIntentSenderForResult()
+    ) { result ->
+        ScannerHelper.handleScanResult(result) { imageUris, pdfUri ->
+            if (imageUris.isNotEmpty()) {
+                val id = UUID.randomUUID().toString()
+                val newImagePaths = mutableListOf<String>()
+                imageUris.forEachIndexed { index, uri ->
+                    val file = File(context.cacheDir, "temp_append_${id}_$index.jpg")
+                    try {
+                        context.contentResolver.openInputStream(uri)?.use { input ->
+                            file.outputStream().use { output ->
+                                input.copyTo(output)
+                            }
+                        }
+                        newImagePaths.add(file.absolutePath)
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                    }
+                }
+                if (newImagePaths.isNotEmpty()) {
+                    coroutineScope.launch {
+                        viewModel.addImagesToDocument(documentId, newImagePaths)
+                        document = viewModel.getDocumentById(documentId)
+                        imageRefreshTrigger++
+                    }
+                }
+            }
+        }
+    }
 
     LaunchedEffect(documentId) {
         document = viewModel.getDocumentById(documentId)
@@ -75,10 +141,17 @@ fun DocumentDetailScreen(
                     }
                     IconButton(onClick = {
                         document?.let {
-                            val file = it.pdfPath?.let { path -> File(path) } 
+                            val originalFile = it.pdfPath?.let { path -> File(path) } 
                                 ?: it.imagePaths.split(",").firstOrNull()?.let { path -> File(path) }
-                            if (file != null && file.exists()) {
-                                val uri = FileProvider.getUriForFile(context, "${context.packageName}.provider", file)
+                            if (originalFile != null && originalFile.exists()) {
+                                val extension = originalFile.extension
+                                val safeName = it.name.replace(Regex("[^a-zA-Z0-9.-]"), "_") + "." + extension
+                                val shareDir = File(context.cacheDir, "share_cache")
+                                if (!shareDir.exists()) shareDir.mkdirs()
+                                val shareFile = File(shareDir, safeName)
+                                originalFile.copyTo(shareFile, overwrite = true)
+                                
+                                val uri = FileProvider.getUriForFile(context, "${context.packageName}.provider", shareFile)
                                 val shareIntent = Intent(Intent.ACTION_SEND).apply {
                                     type = if (it.pdfPath != null) {
                                         if (it.pdfPath.endsWith(".docx")) "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
@@ -108,62 +181,71 @@ fun DocumentDetailScreen(
                     .padding(padding)
                     .verticalScroll(rememberScrollState())
             ) {
+                
                 val imagePaths = document!!.imagePaths.split(",").filter { it.isNotEmpty() }
                 if (imagePaths.isNotEmpty()) {
-                    Box(modifier = Modifier.fillMaxWidth().heightIn(max = 400.dp)) {
-                        AsyncImage(
-                            model = remember(imagePaths, imageRefreshTrigger) {
-                                coil.request.ImageRequest.Builder(context)
-                                    .data(File(imagePaths.first()))
-                                    .memoryCachePolicy(coil.request.CachePolicy.DISABLED)
-                                    .build()
-                            },
-                            contentDescription = "Document preview",
-                            contentScale = ContentScale.FillWidth,
-                            modifier = Modifier.fillMaxWidth().heightIn(max = 400.dp)
-                        )
-                        
-                        Row(
-                            modifier = Modifier
-                                .align(Alignment.BottomEnd)
-                                .padding(16.dp),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            FilledTonalButton(
-                                onClick = {
-                                    val path = imagePaths.firstOrNull()
-                                    if (path != null) {
+                    imagePaths.forEachIndexed { index, path ->
+                        Box(modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)) {
+                            AsyncImage(
+                                model = remember(path, imageRefreshTrigger) {
+                                    coil.request.ImageRequest.Builder(context)
+                                        .data(File(path))
+                                        .memoryCachePolicy(coil.request.CachePolicy.DISABLED)
+                                        .build()
+                                },
+                                contentDescription = "Page ${index + 1}",
+                                contentScale = ContentScale.FillWidth,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            
+                            Row(
+                                modifier = Modifier
+                                    .align(Alignment.BottomEnd)
+                                    .padding(16.dp),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                FilledTonalButton(
+                                    onClick = {
                                         signatureManagerFile = File(path)
-                                    }
-                                },
-                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Gesture,
-                                    contentDescription = "Signature Tools",
-                                    modifier = Modifier.size(18.dp)
-                                )
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text("Signature")
-                            }
+                                    },
+                                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Gesture,
+                                        contentDescription = "Signature Tools",
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text("Signature")
+                                }
 
-
-                            FilledIconButton(
-                                onClick = {
-                                    editingFile = File(imagePaths.first())
-                                },
-                                colors = IconButtonDefaults.filledIconButtonColors(
-                                    containerColor = MaterialTheme.colorScheme.primaryContainer,
-                                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer
-                                ),
-                                modifier = Modifier.size(48.dp)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Gesture,
-                                    contentDescription = "Erase & Clean"
-                                )
+                                FilledIconButton(
+                                    onClick = {
+                                        editingFile = File(path)
+                                    },
+                                    colors = IconButtonDefaults.filledIconButtonColors(
+                                        containerColor = MaterialTheme.colorScheme.primaryContainer,
+                                        contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                                    ),
+                                    modifier = Modifier.size(48.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.AutoFixHigh,
+                                        contentDescription = "Erase & Clean"
+                                    )
+                                }
                             }
                         }
+                    }
+                    
+                    // Add Picture Button at the end
+                    Button(
+                        onClick = { showAddOptionsDialog = true },
+                        modifier = Modifier.fillMaxWidth().padding(16.dp)
+                    ) {
+                        Icon(Icons.Default.AddPhotoAlternate, contentDescription = "Add Page")
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Add Page")
                     }
                 }
 
@@ -344,6 +426,48 @@ fun DocumentDetailScreen(
         com.example.ui.components.SignatureExtractionDialog(
             documentBitmap = signatureExtractBitmap!!,
             onDismiss = { signatureExtractBitmap = null }
+        )
+    }
+
+    if (showAddOptionsDialog) {
+        AlertDialog(
+            onDismissRequest = { showAddOptionsDialog = false },
+            title = { Text("Add Page", fontWeight = androidx.compose.ui.text.font.FontWeight.Bold) },
+            text = { Text("How would you like to add a new page?") },
+            confirmButton = {
+                Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(
+                        onClick = {
+                            showAddOptionsDialog = false
+                            val activity = generateSequence(context) { (it as? android.content.ContextWrapper)?.baseContext }.filterIsInstance<android.app.Activity>().firstOrNull()
+                            if (activity != null) {
+                                ScannerHelper.startScan(activity, scannerLauncher)
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(Icons.Default.PhotoCamera, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Scan with Camera")
+                    }
+                    Button(
+                        onClick = {
+                            showAddOptionsDialog = false
+                            galleryPickerLauncher.launch("image/*")
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(Icons.Default.PhotoLibrary, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Select from Gallery")
+                    }
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showAddOptionsDialog = false }) {
+                    Text("Cancel")
+                }
+            }
         )
     }
 }

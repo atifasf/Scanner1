@@ -476,7 +476,7 @@ fun DocumentEditorScreen(
                         title = { Text("Select Document Filter") },
                         text = {
                             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                FilterOptionItem(label = "Magic Color (CamScanner)", icon = Icons.Default.AutoFixHigh) {
+                                FilterOptionItem(label = "Magic Color (Enhanced)", icon = Icons.Default.AutoFixHigh) {
                                     applyPresetFilter(context, currentPageFile, EnhancementMode.MAGIC_COLOR) {
                                         imageRefreshTrigger++
                                         activeFilterSheet = false

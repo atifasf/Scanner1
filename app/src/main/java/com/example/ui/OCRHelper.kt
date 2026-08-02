@@ -78,7 +78,7 @@ object OCRHelper {
                     val partsArray = org.json.JSONArray()
 
                     val textPart = JSONObject()
-                    textPart.put("text", "Extract and output only the $langName text from this image. Do not translate. Output only the exact words found in the image. No commentary, no explanations, no preamble, and no markdown formatting.")
+                    textPart.put("text", "Extract all $langName text from this image, preserving the original structure, paragraphs, headings, and lists. Do not translate. Output only the exact words found in the image. Do not include any commentary, explanations, preamble, or markdown code blocks.")
 
                     val imagePart = JSONObject()
                     val inlineData = JSONObject()

@@ -4,6 +4,11 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.CameraAlt
+import androidx.compose.material.icons.filled.Restore
+import androidx.compose.ui.text.font.FontWeight
+import com.example.ui.ScannerHelper
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -98,7 +103,18 @@ fun SettingsScreen(
     var isDarkTheme by remember { mutableStateOf(sharedPrefs.getBoolean("dark_theme", true)) }
     var autoOcr by remember { mutableStateOf(sharedPrefs.getBoolean("auto_ocr", false)) }
     var ocrLanguage by remember { mutableStateOf(sharedPrefs.getString("ocr_language", "en") ?: "en") }
+    var captureScanSounds by remember { mutableStateOf(sharedPrefs.getBoolean("capture_scan_sounds", true)) }
+    var autoCrop by remember { mutableStateOf(sharedPrefs.getBoolean("auto_crop", true)) }
+    var scanQuality by remember { mutableStateOf(sharedPrefs.getString("scan_quality", "High") ?: "High") }
+    var scannerMode by remember { mutableStateOf(sharedPrefs.getString("scanner_mode", "FULL") ?: "FULL") }
+    var pageLimit by remember { mutableStateOf(sharedPrefs.getInt("scanner_page_limit", 50)) }
+    var galleryImport by remember { mutableStateOf(sharedPrefs.getBoolean("scanner_gallery_import", true)) }
+    var autoDeskewMagic by remember { mutableStateOf(sharedPrefs.getBoolean("auto_deskew_magic", true)) }
+
     var showLanguageDialog by remember { mutableStateOf(false) }
+    var showScannerModeDialog by remember { mutableStateOf(false) }
+    var showScanQualityDialog by remember { mutableStateOf(false) }
+    var showPageLimitDialog by remember { mutableStateOf(false) }
     var cacheSizeText by remember { mutableStateOf(formatSize(calculateCacheSize(context))) }
 
     val exportLauncher = rememberLauncherForActivityResult(
@@ -220,8 +236,36 @@ fun SettingsScreen(
             }
 
             Text("Scanner Settings", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(16.dp, 8.dp))
+            ListItem(
+                headlineContent = { Text("Capture & Scan Sounds") },
+                supportingContent = { Text("Play sound during document capture") },
+                trailingContent = {
+                    Switch(checked = captureScanSounds, onCheckedChange = { 
+                        captureScanSounds = it
+                        sharedPrefs.edit().putBoolean("capture_scan_sounds", it).apply()
+                    })
+                }
+            )
             ListItem(headlineContent = { Text("Scan Quality") }, supportingContent = { Text("High") })
             ListItem(headlineContent = { Text("Auto Crop") }, trailingContent = { Switch(checked = true, onCheckedChange = {}) })
+            
+            ListItem(
+                headlineContent = { Text("Restore V5 Camera Settings") },
+                supportingContent = { Text("Restore previous scanner and capture settings") },
+                trailingContent = { Icon(Icons.Default.Restore, contentDescription = null) },
+                modifier = Modifier.clickable {
+                    ScannerHelper.restoreVersion5Settings(context)
+                    captureScanSounds = true
+                    autoCrop = true
+                    scanQuality = "High"
+                    scannerMode = "FULL"
+                    pageLimit = 50
+                    galleryImport = true
+                    autoDeskewMagic = true
+                    Toast.makeText(context, "Version 5 Camera Settings Restored", Toast.LENGTH_SHORT).show()
+                }
+            )
+
             HorizontalDivider()
 
             Text("Storage", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(16.dp, 8.dp))

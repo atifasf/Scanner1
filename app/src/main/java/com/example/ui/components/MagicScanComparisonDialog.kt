@@ -54,13 +54,15 @@ fun MagicScanComparisonDialog(
     // Text Darkness & White Background Clarity Filter Controls
     var textDarkness by remember { mutableFloatStateOf(0f) }
     var backgroundClarity by remember { mutableFloatStateOf(0f) }
+    var sharpness by remember { mutableFloatStateOf(0f) }
 
-    val processedEnhancedBitmap = remember(magicResult.enhancedBitmap, textDarkness, backgroundClarity) {
-        if (textDarkness > 0f || backgroundClarity > 0f) {
-            com.example.ui.ImageEnhancer.applyTextDarknessAndBackgroundClarity(
+    val processedEnhancedBitmap = remember(magicResult.enhancedBitmap, textDarkness, backgroundClarity, sharpness) {
+        if (textDarkness > 0f || backgroundClarity > 0f || sharpness > 0f) {
+            com.example.ui.ImageEnhancer.applyImageAdjustments(
                 magicResult.enhancedBitmap,
                 textDarkness,
-                backgroundClarity
+                backgroundClarity,
+                sharpness
             )
         } else {
             magicResult.enhancedBitmap
@@ -327,6 +329,31 @@ fun MagicScanComparisonDialog(
                             Slider(
                                 value = backgroundClarity,
                                 onValueChange = { backgroundClarity = it },
+                                valueRange = 0f..1f,
+                                modifier = Modifier.fillMaxWidth().height(28.dp)
+                            )
+                            
+                            // Image Sharpness Slider
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = "Edge Sharpness (Reduce Blur)",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                                Text(
+                                    text = "${(sharpness * 100).toInt()}%",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                            }
+                            Slider(
+                                value = sharpness,
+                                onValueChange = { sharpness = it },
                                 valueRange = 0f..1f,
                                 modifier = Modifier.fillMaxWidth().height(28.dp)
                             )

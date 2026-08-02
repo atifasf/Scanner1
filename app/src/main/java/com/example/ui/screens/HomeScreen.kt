@@ -36,6 +36,9 @@ import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -314,6 +317,7 @@ fun HomeScreen(
     var scannedImageUris by remember { mutableStateOf<List<android.net.Uri>?>(null) }
     var currentFolderId by remember { mutableStateOf<String?>(null) }
     var showFormatSelectionScreen by remember { mutableStateOf(false) }
+    var showScanAnimationScreen by remember { mutableStateOf(false) }
     var renameStepActive by remember { mutableStateOf(false) }
     var documentNameInput by remember { mutableStateOf("") }
     var isNameEditedByUser by remember { mutableStateOf(false) }
@@ -331,6 +335,7 @@ fun HomeScreen(
         // Scan Enhancement Filters
         var textDarkness by remember { mutableFloatStateOf(0f) }
         var backgroundClarity by remember { mutableFloatStateOf(0f) }
+        var sharpness by remember { mutableFloatStateOf(0f) }
         var enableAutoDeskew by remember { mutableStateOf(false) }
         
         val defaultPrefix = when (selectedFormat) {
@@ -563,7 +568,7 @@ fun HomeScreen(
                                     border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
                                     color = MaterialTheme.colorScheme.surfaceVariant,
                                     modifier = Modifier
-                                        .size(width = 90.dp, height = 120.dp)
+                                        .size(width = 110.dp, height = 145.dp)
                                         .clickable {
                                             editingFile = file
                                             editingPageIndex = index
@@ -697,6 +702,31 @@ fun HomeScreen(
                                     modifier = Modifier.fillMaxWidth().height(28.dp)
                                 )
 
+                                // Image Sharpness Slider
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = "Edge Sharpness (Reduce Blur)",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                    Text(
+                                        text = "${(sharpness * 100).toInt()}%",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.primary
+                                    )
+                                }
+                                Slider(
+                                    value = sharpness,
+                                    onValueChange = { sharpness = it },
+                                    valueRange = 0f..1f,
+                                    modifier = Modifier.fillMaxWidth().height(28.dp)
+                                )
+
                                 Spacer(modifier = Modifier.height(4.dp))
 
                                 // Optional Auto-Deskew Switch (OFF by default)
@@ -747,7 +777,7 @@ fun HomeScreen(
                                 )
                             ) {
                                 Row(
-                                    modifier = Modifier.padding(16.dp),
+                                    modifier = Modifier.padding(vertical = 4.dp, horizontal = 12.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     RadioButton(
@@ -755,18 +785,11 @@ fun HomeScreen(
                                         onClick = { selectedFormat = com.example.ui.DocumentViewModel.OutputFormat.PDF }
                                     )
                                     Spacer(modifier = Modifier.width(8.dp))
-                                    Column {
-                                        Text(
-                                            text = "PDF Document (.pdf)",
-                                            style = MaterialTheme.typography.bodyLarge,
-                                            fontWeight = FontWeight.Bold
-                                        )
-                                        Text(
-                                            text = "Best for sharing as a single multi-page file.",
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = Color.White
-                                        )
-                                    }
+                                    Text(
+                                        text = "PDF Document (.pdf)",
+                                        style = MaterialTheme.typography.bodyLarge,
+                                        fontWeight = FontWeight.Bold
+                                    )
                                 }
                             }
                             
@@ -781,7 +804,7 @@ fun HomeScreen(
                                 )
                             ) {
                                 Row(
-                                    modifier = Modifier.padding(16.dp),
+                                    modifier = Modifier.padding(vertical = 4.dp, horizontal = 12.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     RadioButton(
@@ -789,18 +812,11 @@ fun HomeScreen(
                                         onClick = { selectedFormat = com.example.ui.DocumentViewModel.OutputFormat.JPEG }
                                     )
                                     Spacer(modifier = Modifier.width(8.dp))
-                                    Column {
-                                        Text(
-                                            text = "JPEG Images (.jpg)",
-                                            style = MaterialTheme.typography.bodyLarge,
-                                            fontWeight = FontWeight.Bold
-                                        )
-                                        Text(
-                                            text = "Saves each page as an optimized high-quality image.",
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = Color.White
-                                        )
-                                    }
+                                    Text(
+                                        text = "JPEG Images (.jpg)",
+                                        style = MaterialTheme.typography.bodyLarge,
+                                        fontWeight = FontWeight.Bold
+                                    )
                                 }
                             }
                             
@@ -815,7 +831,7 @@ fun HomeScreen(
                                 )
                             ) {
                                 Row(
-                                    modifier = Modifier.padding(16.dp),
+                                    modifier = Modifier.padding(vertical = 4.dp, horizontal = 12.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     RadioButton(
@@ -823,18 +839,11 @@ fun HomeScreen(
                                         onClick = { selectedFormat = com.example.ui.DocumentViewModel.OutputFormat.WORD }
                                     )
                                     Spacer(modifier = Modifier.width(8.dp))
-                                    Column {
-                                        Text(
-                                            text = "Word Document (.docx)",
-                                            style = MaterialTheme.typography.bodyLarge,
-                                            fontWeight = FontWeight.Bold
-                                        )
-                                        Text(
-                                            text = "Extracts editable text using high-accuracy OCR.",
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = Color.White
-                                        )
-                                    }
+                                    Text(
+                                        text = "Word Document (.docx)",
+                                        style = MaterialTheme.typography.bodyLarge,
+                                        fontWeight = FontWeight.Bold
+                                    )
                                 }
                             }
                         }
@@ -880,6 +889,7 @@ fun HomeScreen(
                                     isIdCardGrid = isIdCardScan,
                                     textDarkness = textDarkness,
                                     backgroundClarity = backgroundClarity,
+                                    sharpness = sharpness,
                                     enableAutoDeskew = enableAutoDeskew
                                 ) {
                                     showFormatSelectionScreen = false
@@ -1050,7 +1060,8 @@ fun HomeScreen(
                         }
                     }
                 } else {
-                    showFormatSelectionScreen = true
+                    com.example.ui.SoundHelper.playShutterSound(context)
+                    showScanAnimationScreen = true
                 }
             }
         }
@@ -1754,6 +1765,83 @@ fun HomeScreen(
                 signatureSourceBitmap = null
             }
         )
+    }
+
+    if (showScanAnimationScreen && scannedImageUris != null && scannedImageUris!!.isNotEmpty()) {
+        val firstImage = scannedImageUris!!.first()
+        var scanLineY by remember { mutableFloatStateOf(0f) }
+        
+        LaunchedEffect(Unit) {
+            com.example.ui.SoundHelper.playScanSound(context)
+            androidx.compose.animation.core.animate(
+                initialValue = 0f,
+                targetValue = 1f,
+                animationSpec = androidx.compose.animation.core.tween(durationMillis = 1500, easing = androidx.compose.animation.core.LinearEasing)
+            ) { value, _ ->
+                scanLineY = value
+            }
+            showScanAnimationScreen = false
+            showFormatSelectionScreen = true
+        }
+        
+        androidx.activity.compose.BackHandler { }
+        
+        androidx.compose.ui.window.Dialog(
+            onDismissRequest = { },
+            properties = androidx.compose.ui.window.DialogProperties(
+                dismissOnBackPress = false,
+                dismissOnClickOutside = false,
+                usePlatformDefaultWidth = false
+            )
+        ) {
+            Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
+                // Original raw image (dimmed)
+                coil.compose.AsyncImage(
+                    model = firstImage,
+                    contentDescription = null,
+                    contentScale = ContentScale.Fit,
+                    modifier = Modifier.fillMaxSize().alpha(0.5f)
+                )
+                
+                // Professionally cleaned image (grayscale/brightened) revealed by scanner
+                val colorMatrix = remember {
+                    androidx.compose.ui.graphics.ColorMatrix().apply { setToSaturation(0f) }
+                }
+                
+                coil.compose.AsyncImage(
+                    model = firstImage,
+                    contentDescription = null,
+                    contentScale = ContentScale.Fit,
+                    colorFilter = androidx.compose.ui.graphics.ColorFilter.colorMatrix(colorMatrix),
+                    modifier = Modifier.fillMaxSize().drawWithContent {
+                        val yPos = size.height * scanLineY
+                        clipRect(top = 0f, bottom = yPos) {
+                            this@drawWithContent.drawContent()
+                        }
+                    }
+                )
+                
+                androidx.compose.foundation.Canvas(modifier = Modifier.fillMaxSize()) {
+                    val yPos = size.height * scanLineY
+                    drawLine(
+                        color = Color.Green,
+                        start = androidx.compose.ui.geometry.Offset(0f, yPos),
+                        end = androidx.compose.ui.geometry.Offset(size.width, yPos),
+                        strokeWidth = 6f
+                    )
+                    val gradient = androidx.compose.ui.graphics.Brush.verticalGradient(
+                        colors = listOf(Color.Green.copy(alpha = 0f), Color.Green.copy(alpha = 0.4f)),
+                        startY = maxOf(0f, yPos - 150f),
+                        endY = maxOf(0.1f, yPos)
+                    )
+                    drawRect(
+                        brush = gradient,
+                        topLeft = androidx.compose.ui.geometry.Offset(0f, yPos - 150f),
+                        size = androidx.compose.ui.geometry.Size(size.width, 150f)
+                    )
+                }
+            }
+        }
     }
 }
 

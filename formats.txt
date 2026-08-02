@@ -1,0 +1,106 @@
+   740	                            Card(
+   741	                                modifier = Modifier
+   742	                                    .fillMaxWidth()
+   743	                                    .clip(RoundedCornerShape(12.dp))
+   744	                                    .clickable { selectedFormat = com.example.ui.DocumentViewModel.OutputFormat.PDF },
+   745	                                colors = CardDefaults.cardColors(
+   746	                                    containerColor = if (selectedFormat == com.example.ui.DocumentViewModel.OutputFormat.PDF) 
+   747	                                        MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant
+   748	                                )
+   749	                            ) {
+   750	                                Row(
+   751	                                    modifier = Modifier.padding(16.dp),
+   752	                                    verticalAlignment = Alignment.CenterVertically
+   753	                                ) {
+   754	                                    RadioButton(
+   755	                                        selected = selectedFormat == com.example.ui.DocumentViewModel.OutputFormat.PDF,
+   756	                                        onClick = { selectedFormat = com.example.ui.DocumentViewModel.OutputFormat.PDF }
+   757	                                    )
+   758	                                    Spacer(modifier = Modifier.width(8.dp))
+   759	                                    Column {
+   760	                                        Text(
+   761	                                            text = "PDF Document (.pdf)",
+   762	                                            style = MaterialTheme.typography.bodyLarge,
+   763	                                            fontWeight = FontWeight.Bold
+   764	                                        )
+   765	                                        Text(
+   766	                                            text = "Best for sharing as a single multi-page file.",
+   767	                                            style = MaterialTheme.typography.bodySmall,
+   768	                                            color = Color.White
+   769	                                        )
+   770	                                    }
+   771	                                }
+   772	                            }
+   773	                            
+   774	                            Card(
+   775	                                modifier = Modifier
+   776	                                    .fillMaxWidth()
+   777	                                    .clip(RoundedCornerShape(12.dp))
+   778	                                    .clickable { selectedFormat = com.example.ui.DocumentViewModel.OutputFormat.JPEG },
+   779	                                colors = CardDefaults.cardColors(
+   780	                                    containerColor = if (selectedFormat == com.example.ui.DocumentViewModel.OutputFormat.JPEG) 
+   781	                                        MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant
+   782	                                )
+   783	                            ) {
+   784	                                Row(
+   785	                                    modifier = Modifier.padding(16.dp),
+   786	                                    verticalAlignment = Alignment.CenterVertically
+   787	                                ) {
+   788	                                    RadioButton(
+   789	                                        selected = selectedFormat == com.example.ui.DocumentViewModel.OutputFormat.JPEG,
+   790	                                        onClick = { selectedFormat = com.example.ui.DocumentViewModel.OutputFormat.JPEG }
+   791	                                    )
+   792	                                    Spacer(modifier = Modifier.width(8.dp))
+   793	                                    Column {
+   794	                                        Text(
+   795	                                            text = "JPEG Images (.jpg)",
+   796	                                            style = MaterialTheme.typography.bodyLarge,
+   797	                                            fontWeight = FontWeight.Bold
+   798	                                        )
+   799	                                        Text(
+   800	                                            text = "Saves each page as an optimized high-quality image.",
+   801	                                            style = MaterialTheme.typography.bodySmall,
+   802	                                            color = Color.White
+   803	                                        )
+   804	                                    }
+   805	                                }
+   806	                            }
+   807	                            
+   808	                            Card(
+   809	                                modifier = Modifier
+   810	                                    .fillMaxWidth()
+   811	                                    .clip(RoundedCornerShape(12.dp))
+   812	                                    .clickable { selectedFormat = com.example.ui.DocumentViewModel.OutputFormat.WORD },
+   813	                                colors = CardDefaults.cardColors(
+   814	                                    containerColor = if (selectedFormat == com.example.ui.DocumentViewModel.OutputFormat.WORD) 
+   815	                                        MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant
+   816	                                )
+   817	                            ) {
+   818	                                Row(
+   819	                                    modifier = Modifier.padding(16.dp),
+   820	                                    verticalAlignment = Alignment.CenterVertically
+   821	                                ) {
+   822	                                    RadioButton(
+   823	                                        selected = selectedFormat == com.example.ui.DocumentViewModel.OutputFormat.WORD,
+   824	                                        onClick = { selectedFormat = com.example.ui.DocumentViewModel.OutputFormat.WORD }
+   825	                                    )
+   826	                                    Spacer(modifier = Modifier.width(8.dp))
+   827	                                    Column {
+   828	                                        Text(
+   829	                                            text = "Word Document (.docx)",
+   830	                                            style = MaterialTheme.typography.bodyLarge,
+   831	                                            fontWeight = FontWeight.Bold
+   832	                                        )
+   833	                                        Text(
+   834	                                            text = "Extracts editable text using high-accuracy OCR.",
+   835	                                            style = MaterialTheme.typography.bodySmall,
+   836	                                            color = Color.White
+   837	                                        )
+   838	                                    }
+   839	                                }
+   840	                            }
+   841	                        }
+   842	                        
+   843	                        Card(
+   844	                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.08f)),
+   845	                            shape = RoundedCornerShape(8.dp),

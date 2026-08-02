@@ -22,12 +22,15 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import kotlin.math.max
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 
 @Composable
 fun SignatureCropEditor(
     documentBitmap: Bitmap,
     onExtract: (android.graphics.Rect) -> Unit
 ) {
+    val haptic = LocalHapticFeedback.current
     var containerSize by remember { mutableStateOf(IntSize.Zero) }
     var viewportScale by remember { mutableFloatStateOf(1f) }
     var viewportOffset by remember { mutableStateOf(Offset.Zero) }
@@ -93,6 +96,13 @@ fun SignatureCropEditor(
                         size = Size(rectR - rectL, rectB - rectT),
                         style = Stroke(width = 2.dp.toPx())
                     )
+                    
+                    // Draw finer manual adjustment anchor points at corners
+                    val cornerRadius = 6.dp.toPx()
+                    drawCircle(Color.White, radius = cornerRadius, center = Offset(rectL, rectT))
+                    drawCircle(Color.White, radius = cornerRadius, center = Offset(rectR, rectT))
+                    drawCircle(Color.White, radius = cornerRadius, center = Offset(rectL, rectB))
+                    drawCircle(Color.White, radius = cornerRadius, center = Offset(rectR, rectB))
                 }
 
                 // Drag Handle Modifier Factory
@@ -126,6 +136,26 @@ fun SignatureCropEditor(
                         if (newB - newT < 50f) {
                             if (isTop) newT = newB - 50f
                             if (isBottom) newB = newT + 50f
+                        }
+                        
+                        val snapThreshold = 20f / displayScale
+                        if (!isMove) {
+                            if (isLeft && newL < snapThreshold) {
+                                if (newL > 0f) haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                newL = 0f
+                            }
+                            if (isTop && newT < snapThreshold) {
+                                if (newT > 0f) haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                newT = 0f
+                            }
+                            if (isRight && bmpW - newR < snapThreshold) {
+                                if (newR < bmpW) haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                newR = bmpW
+                            }
+                            if (isBottom && bmpH - newB < snapThreshold) {
+                                if (newB < bmpH) haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                newB = bmpH
+                            }
                         }
                         
                         if (isMove) {

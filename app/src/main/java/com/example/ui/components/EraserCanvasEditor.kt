@@ -69,6 +69,7 @@ fun EraserCanvasEditor(
     // Adjustment sliders
     var textDarkness by remember { mutableFloatStateOf(0f) }
     var backgroundClarity by remember { mutableFloatStateOf(0f) }
+    var sharpness by remember { mutableFloatStateOf(0f) }
     
     // Strokes drawn by the user (Bitmap coordinates)
     val strokes = remember { mutableStateListOf<EraseStroke>() }
@@ -173,8 +174,16 @@ fun EraserCanvasEditor(
                                             }
                                             
                                             canvas.drawBitmap(b, 0f, 0f, paint)
+
+                                            // Apply sharpness if needed
+                                            var finalEnhancedB = enhancedB
+                                            if (sharpness > 0f) {
+                                                finalEnhancedB = com.example.ui.ImageEnhancer.deblurAndSharpenText(enhancedB, sharpness * 1.5f)
+                                                if (finalEnhancedB != enhancedB) enhancedB.recycle()
+                                            }
                                             
                                             // 2. Draw user's eraser strokes directly on top (total erase white canvas overlay)
+                                            val finalCanvas = AndroidCanvas(finalEnhancedB)
                                             val strokePaint = AndroidPaint().apply {
                                                 color = android.graphics.Color.WHITE
                                                 style = AndroidPaint.Style.STROKE
@@ -191,18 +200,18 @@ fun EraserCanvasEditor(
                                                     for (i in 1 until stroke.points.size) {
                                                         path.lineTo(stroke.points[i].x, stroke.points[i].y)
                                                     }
-                                                    canvas.drawPath(path, strokePaint)
+                                                    finalCanvas.drawPath(path, strokePaint)
                                                 } else if (stroke.points.size == 1) {
                                                     strokePaint.strokeWidth = stroke.strokeWidth
-                                                    canvas.drawPoint(stroke.points[0].x, stroke.points[0].y, strokePaint)
+                                                    finalCanvas.drawPoint(stroke.points[0].x, stroke.points[0].y, strokePaint)
                                                 }
                                             }
                                             
                                             // Write back to file
                                             FileOutputStream(imageFile).use { out ->
-                                                enhancedB.compress(Bitmap.CompressFormat.JPEG, 90, out)
+                                                finalEnhancedB.compress(Bitmap.CompressFormat.JPEG, 90, out)
                                             }
-                                            enhancedB.recycle()
+                                            finalEnhancedB.recycle()
                                         }
                                     } catch (e: Exception) {
                                         e.printStackTrace()
@@ -390,6 +399,47 @@ fun EraserCanvasEditor(
                         Slider(
                             value = backgroundClarity,
                             onValueChange = { backgroundClarity = it },
+                            valueRange = 0f..1f,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(32.dp)
+                        )
+                    }
+
+                    // Slider 4: Image Sharpness
+                    Column(verticalArrangement = Arrangement.spacedBy(0.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Details,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Text(
+                                    text = "Edge Sharpness",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+                            Text(
+                                text = "${(sharpness * 100).toInt()}%",
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                        Slider(
+                            value = sharpness,
+                            onValueChange = { sharpness = it },
                             valueRange = 0f..1f,
                             modifier = Modifier
                                 .fillMaxWidth()
