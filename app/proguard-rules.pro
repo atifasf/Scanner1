@@ -15,3 +15,11 @@
 -keep class com.example.ui.ai.** { *; }
 -keep class com.example.BuildConfig { *; }
 
+# Apache POI and dependencies
+-dontwarn java.awt.**
+-dontwarn javax.xml.stream.**
+-dontwarn net.sf.saxon.**
+-dontwarn org.osgi.framework.**
+-dontwarn org.apache.poi.**
+-dontwarn org.apache.xmlbeans.**
+
