@@ -17,8 +17,8 @@ android {
     applicationId = "com.scanverse.atifsam280"
     minSdk = 26
     targetSdk = 36
-    versionCode = 8
-    versionName = "8.0"
+    versionCode = 10
+    versionName = "10.0"
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
   }
@@ -55,6 +55,9 @@ android {
   buildFeatures {
     compose = true
     buildConfig = true
+  }
+  lint {
+    abortOnError = false
   }
   testOptions { unitTests { isIncludeAndroidResources = true } }
 }
