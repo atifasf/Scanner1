@@ -723,11 +723,10 @@ class DocumentViewModel(application: Application) : AndroidViewModel(application
                 }
 
                 val prompt = if (languageCode == "en") {
-                    "Extract all text from this image, preserving the original structure, paragraphs, headings, and lists. If there are tables in the image, represent them EXACTLY using Markdown table format (with | columns and |---| headers). Do not translate. Output only the exact words found in the image. Ensure the output is well-formatted for a text document. Do not include any commentary, explanations, preamble, or markdown code blocks (like ```)."
+                    "Extract all content from the input image accurately. Formatting Rules:\n1. Preserve layout structure as closely as possible using HTML tags.\n2. Format regular text inside paragraph tags <p>...</p>.\n3. CRITICAL: Whenever you detect a table, grid, or column-based data, convert it into a well-structured HTML table using <table>, <thead>, <tbody>, <tr>, <th>, and <td> tags.\n4. Maintain row and column counts exactly as they appear in the source image.\n5. Do not lose any textual content inside table cells.\n6. Output ONLY the raw HTML string without any markdown code block wrappers."
                 } else {
-                    "Extract all $langName text from this image, preserving the original structure, paragraphs, headings, and lists. If there are tables in the image, represent them EXACTLY using Markdown table format (with | columns and |---| headers). Do not translate. Output only the exact words found in the image. Ensure the output is well-formatted for a text document. Do not include any commentary, explanations, preamble, or markdown code blocks (like ```)."
+                    "Extract all $langName content from the input image accurately. Formatting Rules:\n1. Preserve layout structure as closely as possible using HTML tags.\n2. Format regular text inside paragraph tags <p>...</p>.\n3. CRITICAL: Whenever you detect a table, grid, or column-based data, convert it into a well-structured HTML table using <table>, <thead>, <tbody>, <tr>, <th>, and <td> tags.\n4. Maintain row and column counts exactly as they appear in the source image.\n5. Do not lose any textual content inside table cells.\n6. Output ONLY the raw HTML string without any markdown code block wrappers."
                 }
-
                 val requestJson = JSONObject()
                 val contentsArray = JSONArray()
                 val contentObject = JSONObject()
@@ -902,58 +901,7 @@ class DocumentViewModel(application: Application) : AndroidViewModel(application
                     
                     if (!pageText.isNullOrBlank()) {
                         extractedTexts.add(pageText)
-                        val paragraphs = pageText.split(Regex("\\n\\s*\\n"))
-                        paragraphs.forEach { pText ->
-                            val trimmedP = pText.trim()
-                            if (trimmedP.isNotEmpty()) {
-                                val lines = trimmedP.split("\n")
-                                val isTable = lines.size > 1 && lines.any { it.contains("|") && it.contains("-") && it.replace(Regex("[\\s|\\-]"), "").isEmpty() }
-
-                                if (isTable) {
-                                    val tableLines = lines.filter { it.contains("|") && !it.matches(Regex("^[\\s|\\-:]+$")) }
-                                    if (tableLines.isNotEmpty()) {
-                                        val parsedRows = tableLines.map { line ->
-                                            var l = line.trim()
-                                            if (l.startsWith("|")) l = l.substring(1)
-                                            if (l.endsWith("|")) l = l.substring(0, l.length - 1)
-                                            l.split("|").map { it.trim() }
-                                        }
-                                        val maxCols = parsedRows.maxOfOrNull { it.size } ?: 1
-                                        val table = doc.createTable(parsedRows.size, maxCols)
-                                        parsedRows.forEachIndexed { rIndex, rowData ->
-                                            val tableRow = table.getRow(rIndex)
-                                            rowData.forEachIndexed { cIndex, cellData ->
-                                                val cell = tableRow?.getCell(cIndex)
-                                                if (cell != null) {
-                                                    if (cell.paragraphs.isNotEmpty()) {
-                                                        val p = cell.paragraphs[0]
-                                                        val r = p.createRun()
-                                                        r.fontSize = 11
-                                                        r.setText(cellData)
-                                                    } else {
-                                                        cell.setText(cellData)
-                                                    }
-                                                }
-                                            }
-                                        }
-                                        val endPara = doc.createParagraph()
-                                        endPara.spacingAfter = 200
-                                    }
-                                } else {
-                                    val para = doc.createParagraph()
-                                    val run = para.createRun()
-                                    run.fontSize = 11
-
-                                    lines.forEachIndexed { lineIndex, line ->
-                                        run.setText(line)
-                                        if (lineIndex < lines.size - 1) {
-                                            run.addBreak()
-                                        }
-                                    }
-                                    para.spacingAfter = 200
-                                }
-                            }
-                        }
+                        ExportHelper.appendContentToDoc(doc, pageText)
                     } else {
                         val para = doc.createParagraph()
                         val run = para.createRun()

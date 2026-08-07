@@ -1,3 +1,6 @@
+import re
+
+code_helper = '''
 package com.example.ui
 
 import android.content.Context
@@ -9,6 +12,7 @@ import java.io.FileOutputStream
 import java.io.FileWriter
 import org.apache.poi.xssf.usermodel.XSSFWorkbook
 import org.apache.poi.xwpf.usermodel.XWPFDocument
+import org.apache.poi.xwpf.usermodel.XWPFTable
 
 object ExportHelper {
 
@@ -46,8 +50,10 @@ object ExportHelper {
     }
 
     fun appendContentToDoc(doc: XWPFDocument, rawContent: String) {
-        val content = rawContent.replace(Regex("```html|```markdown|```"), "").trim()
+        // Strip markdown code block wrappers if any
+        var content = rawContent.replace(Regex("```html|```markdown|```"), "").trim()
 
+        // Check if content contains HTML table tags
         if (content.contains("<table", ignoreCase = true)) {
             parseHtmlToDoc(doc, content)
         } else if (content.contains("|") && content.contains("-")) {
@@ -58,6 +64,7 @@ object ExportHelper {
     }
 
     private fun parseHtmlToDoc(doc: XWPFDocument, htmlText: String) {
+        // Split by table blocks
         val tableRegex = Regex("(?i)<table[^>]*>([\\s\\S]*?)</table>")
         var lastIdx = 0
 
@@ -132,10 +139,10 @@ object ExportHelper {
             val trimmedP = pText.trim()
             if (trimmedP.isNotEmpty()) {
                 val lines = trimmedP.split("\n")
-                val isTable = lines.size > 1 && lines.any { it.contains("|") && it.contains("-") && it.replace(Regex("[\\s|-]"), "").isEmpty() }
+                val isTable = lines.size > 1 && lines.any { it.contains("|") && it.contains("-") && it.replace(Regex("[\\s|\\-]"), "").isEmpty() }
 
                 if (isTable) {
-                    val tableLines = lines.filter { it.contains("|") && !it.matches(Regex("^[\\s|-:]+$")) }
+                    val tableLines = lines.filter { it.contains("|") && !it.matches(Regex("^[\\s|\\-:]+$")) }
                     if (tableLines.isNotEmpty()) {
                         val parsedRows = tableLines.map { line ->
                             var l = line.trim()
@@ -236,3 +243,9 @@ object ExportHelper {
         }
     }
 }
+'''
+
+with open('app/src/main/java/com/example/ui/ExportHelper.kt', 'w') as f:
+    f.write(code_helper)
+
+print("ExportHelper updated successfully")

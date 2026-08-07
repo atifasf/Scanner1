@@ -1,4 +1,7 @@
-package com.example.ui
+import sys
+
+# 1. Fix ExportHelper.kt
+export_helper_code = '''package com.example.ui
 
 import android.content.Context
 import android.content.Intent
@@ -58,7 +61,7 @@ object ExportHelper {
     }
 
     private fun parseHtmlToDoc(doc: XWPFDocument, htmlText: String) {
-        val tableRegex = Regex("(?i)<table[^>]*>([\\s\\S]*?)</table>")
+        val tableRegex = Regex("(?i)<table[^>]*>([\\\\s\\\\S]*?)</table>")
         var lastIdx = 0
 
         for (match in tableRegex.findAll(htmlText)) {
@@ -68,8 +71,8 @@ object ExportHelper {
             }
 
             val tableHtml = match.groupValues[1]
-            val rowRegex = Regex("(?i)<tr[^>]*>([\\s\\S]*?)</tr>")
-            val cellRegex = Regex("(?i)<t[dh][^>]*>([\\s\\S]*?)</t[dh]>")
+            val rowRegex = Regex("(?i)<tr[^>]*>([\\\\s\\\\S]*?)</tr>")
+            val cellRegex = Regex("(?i)<t[dh][^>]*>([\\\\s\\\\S]*?)</t[dh]>")
 
             val rowsData = mutableListOf<List<String>>()
             for (rowMatch in rowRegex.findAll(tableHtml)) {
@@ -77,8 +80,8 @@ object ExportHelper {
                 val cellsData = cellRegex.findAll(rowHtml).map { cellMatch ->
                     cellMatch.groupValues[1]
                         .replace(Regex("(?i)<p[^>]*>"), "")
-                        .replace(Regex("(?i)</p>"), "\n")
-                        .replace(Regex("(?i)<br\\s*/?>"), "\n")
+                        .replace(Regex("(?i)</p>"), "\\n")
+                        .replace(Regex("(?i)<br\\\\s*/?>"), "\\n")
                         .replace(Regex("<[^>]*>"), "")
                         .trim()
                 }.toList()
@@ -95,7 +98,7 @@ object ExportHelper {
                     row.forEachIndexed { cIdx, cellText ->
                         val cell = tableRow?.getCell(cIdx)
                         if (cell != null) {
-                            val lines = cellText.split("\n")
+                            val lines = cellText.split("\\n")
                             if (cell.paragraphs.isNotEmpty()) {
                                 val p = cell.paragraphs[0]
                                 p.runs.forEach { it.setText("", 0) }
@@ -127,15 +130,15 @@ object ExportHelper {
     }
 
     private fun parseMarkdownToDoc(doc: XWPFDocument, mdText: String) {
-        val paragraphs = mdText.split(Regex("\\n\\s*\\n"))
+        val paragraphs = mdText.split(Regex("\\\\n\\\\s*\\\\n"))
         paragraphs.forEach { pText ->
             val trimmedP = pText.trim()
             if (trimmedP.isNotEmpty()) {
-                val lines = trimmedP.split("\n")
-                val isTable = lines.size > 1 && lines.any { it.contains("|") && it.contains("-") && it.replace(Regex("[\\s|-]"), "").isEmpty() }
+                val lines = trimmedP.split("\\n")
+                val isTable = lines.size > 1 && lines.any { it.contains("|") && it.contains("-") && it.replace(Regex("[\\\\s|-]"), "").isEmpty() }
 
                 if (isTable) {
-                    val tableLines = lines.filter { it.contains("|") && !it.matches(Regex("^[\\s|-:]+$")) }
+                    val tableLines = lines.filter { it.contains("|") && !it.matches(Regex("^[\\\\s|-:]+$")) }
                     if (tableLines.isNotEmpty()) {
                         val parsedRows = tableLines.map { line ->
                             var l = line.trim()
@@ -173,19 +176,19 @@ object ExportHelper {
 
     private fun parsePlainTextToDoc(doc: XWPFDocument, text: String) {
         val cleanText = text.replace(Regex("(?i)<p[^>]*>"), "")
-            .replace(Regex("(?i)</p>"), "\n\n")
-            .replace(Regex("(?i)<br\\s*/?>"), "\n")
+            .replace(Regex("(?i)</p>"), "\\n\\n")
+            .replace(Regex("(?i)<br\\\\s*/?>"), "\\n")
             .replace(Regex("<[^>]*>"), "")
             .trim()
 
-        val paragraphs = cleanText.split(Regex("\\n\\s*\\n"))
+        val paragraphs = cleanText.split(Regex("\\\\n\\\\s*\\\\n"))
         paragraphs.forEach { p ->
             val trimmed = p.trim()
             if (trimmed.isNotEmpty()) {
                 val para = doc.createParagraph()
                 val run = para.createRun()
                 run.fontSize = 11
-                val lines = trimmed.split("\n")
+                val lines = trimmed.split("\\n")
                 lines.forEachIndexed { lIndex, line ->
                     run.setText(line)
                     if (lIndex < lines.size - 1) {
@@ -217,10 +220,10 @@ object ExportHelper {
             val workbook = XSSFWorkbook()
             val sheet = workbook.createSheet("Extracted Data")
             val cleanText = text.replace(Regex("<[^>]*>"), "")
-            val lines = cleanText.split("\n")
+            val lines = cleanText.split("\\n")
             lines.forEachIndexed { rowIndex, line ->
                 val row = sheet.createRow(rowIndex)
-                val cols = line.split("\t", "   ", " | ", "|")
+                val cols = line.split("\\t", "   ", " | ", "|")
                 cols.forEachIndexed { colIndex, cellValue ->
                     val cell = row.createCell(colIndex)
                     cell.setCellValue(cellValue.trim())
@@ -236,3 +239,34 @@ object ExportHelper {
         }
     }
 }
+'''
+
+with open('app/src/main/java/com/example/ui/ExportHelper.kt', 'w') as f:
+    f.write(export_helper_code)
+print("Saved ExportHelper.kt")
+
+# 2. Fix DocumentViewModel.kt prompt strings cleanly
+vm_path = 'app/src/main/java/com/example/ui/DocumentViewModel.kt'
+with open(vm_path, 'r') as f:
+    vm_content = f.read()
+
+prompt_en = '''"Extract all content from the input image accurately. Formatting Rules:\\n1. Preserve layout structure as closely as possible using HTML tags.\\n2. Format regular text inside paragraph tags <p>...</p>.\\n3. CRITICAL: Whenever you detect a table, grid, or column-based data, convert it into a well-structured HTML table using <table>, <thead>, <tbody>, <tr>, <th>, and <td> tags.\\n4. Maintain row and column counts exactly as they appear in the source image.\\n5. Do not lose any textual content inside table cells.\\n6. Output ONLY the raw HTML string without any markdown code block wrappers."'''
+
+prompt_other = '''"Extract all $langName content from the input image accurately. Formatting Rules:\\n1. Preserve layout structure as closely as possible using HTML tags.\\n2. Format regular text inside paragraph tags <p>...</p>.\\n3. CRITICAL: Whenever you detect a table, grid, or column-based data, convert it into a well-structured HTML table using <table>, <thead>, <tbody>, <tr>, <th>, and <td> tags.\\n4. Maintain row and column counts exactly as they appear in the source image.\\n5. Do not lose any textual content inside table cells.\\n6. Output ONLY the raw HTML string without any markdown code block wrappers."'''
+
+# Replace prompt block in performGeminiOcr
+start_p = 'val prompt = if (languageCode == "en") {'
+end_p = 'val requestJson = JSONObject()'
+
+s_idx = vm_content.find(start_p)
+e_idx = vm_content.find(end_p, s_idx) if s_idx != -1 else -1
+
+if s_idx != -1 and e_idx != -1:
+    new_prompt_block = f'val prompt = if (languageCode == "en") {{\n                    {prompt_en}\n                }} else {{\n                    {prompt_other}\n                }}\n                '
+    vm_content = vm_content[:s_idx] + new_prompt_block + vm_content[e_idx:]
+    with open(vm_path, 'w') as f:
+        f.write(vm_content)
+    print("Updated prompt in DocumentViewModel.kt")
+else:
+    print("Could not locate prompt block in DocumentViewModel.kt")
+
