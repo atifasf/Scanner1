@@ -23,3 +23,14 @@
 -dontwarn org.apache.poi.**
 -dontwarn org.apache.xmlbeans.**
 
+
+-keep class org.apache.poi.** { *; }
+-keep class org.apache.xmlbeans.** { *; }
+-keep class schemaorg_apache_xmlbeans.** { *; }
+-keep class com.fasterxml.aalto.** { *; }
+-keep class org.openxmlformats.** { *; }
+-keep class javax.xml.stream.** { *; }
+-keep class com.fasterxml.aalto.stax.** { *; }
+-dontwarn org.openxmlformats.**
+-dontwarn schemaorg_apache_xmlbeans.**
+-dontwarn com.fasterxml.aalto.**

@@ -11,6 +11,11 @@ import org.apache.poi.xssf.usermodel.XSSFWorkbook
 import org.apache.poi.xwpf.usermodel.XWPFDocument
 
 object ExportHelper {
+    init {
+        System.setProperty("javax.xml.stream.XMLInputFactory", "com.fasterxml.aalto.stax.InputFactoryImpl")
+        System.setProperty("javax.xml.stream.XMLOutputFactory", "com.fasterxml.aalto.stax.OutputFactoryImpl")
+        System.setProperty("javax.xml.stream.XMLEventFactory", "com.fasterxml.aalto.stax.EventFactoryImpl")
+    }
 
     private fun shareFile(context: Context, file: File, mimeType: String) {
         try {
@@ -21,7 +26,7 @@ object ExportHelper {
                 addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
             }
             context.startActivity(Intent.createChooser(intent, "Save or Share File"))
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
             e.printStackTrace()
             Toast.makeText(context, "Error sharing file", Toast.LENGTH_SHORT).show()
         }
@@ -32,7 +37,7 @@ object ExportHelper {
             val file = File(context.cacheDir, "$fileName.txt")
             FileWriter(file).use { it.write(text) }
             shareFile(context, file, "text/plain")
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
             e.printStackTrace()
             Toast.makeText(context, "Failed to save TXT", Toast.LENGTH_SHORT).show()
         }
@@ -51,7 +56,7 @@ object ExportHelper {
             FileOutputStream(file).use { doc.write(it) }
             doc.close()
             shareFile(context, file, "application/vnd.openxmlformats-officedocument.wordprocessingml.document")
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
             e.printStackTrace()
             Toast.makeText(context, "Failed to export Word", Toast.LENGTH_SHORT).show()
         }
@@ -74,7 +79,7 @@ object ExportHelper {
             FileOutputStream(file).use { workbook.write(it) }
             workbook.close()
             shareFile(context, file, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
             e.printStackTrace()
             Toast.makeText(context, "Failed to export Excel", Toast.LENGTH_SHORT).show()
         }

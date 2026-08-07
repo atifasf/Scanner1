@@ -52,6 +52,11 @@ import androidx.compose.runtime.mutableStateOf
 import android.graphics.pdf.PdfRenderer
 
 class DocumentViewModel(application: Application) : AndroidViewModel(application) {
+    init {
+        System.setProperty("javax.xml.stream.XMLInputFactory", "com.fasterxml.aalto.stax.InputFactoryImpl")
+        System.setProperty("javax.xml.stream.XMLOutputFactory", "com.fasterxml.aalto.stax.OutputFactoryImpl")
+        System.setProperty("javax.xml.stream.XMLEventFactory", "com.fasterxml.aalto.stax.EventFactoryImpl")
+    }
     enum class OutputFormat { PDF, JPEG, WORD }
 
     var ocrImageUri by mutableStateOf<Uri?>(null)
@@ -118,7 +123,7 @@ class DocumentViewModel(application: Application) : AndroidViewModel(application
                 }
                 pdfDocument.writeTo(pdfFile.outputStream())
                 pdfDocument.close()
-            } catch (e: Exception) {
+            } catch (e: Throwable) {
                 e.printStackTrace()
             }
         }
@@ -286,7 +291,7 @@ class DocumentViewModel(application: Application) : AndroidViewModel(application
                         }
                     }
                     }
-                } catch (e: Exception) {
+                } catch (e: Throwable) {
                     e.printStackTrace()
                 }
                 savedImages.add(file.absolutePath)
@@ -415,7 +420,7 @@ class DocumentViewModel(application: Application) : AndroidViewModel(application
                                                     }
                                                 }
                                             }
-                                        } catch (e: Exception) {
+                                        } catch (e: Throwable) {
                                             e.printStackTrace()
                                         }
                                     }
@@ -429,7 +434,7 @@ class DocumentViewModel(application: Application) : AndroidViewModel(application
                         pdfDocument.writeTo(pdfFile.outputStream())
                         pdfDocument.close()
                         savedDocPath = pdfFile.absolutePath
-                    } catch (e: Exception) {
+                    } catch (e: Throwable) {
                         e.printStackTrace()
                     }
                 }
@@ -456,7 +461,7 @@ class DocumentViewModel(application: Application) : AndroidViewModel(application
                             } else {
                                 try {
                                     Tasks.await(recognizer.process(inputImage))
-                                } catch (e: Exception) {
+                                } catch (e: Throwable) {
                                     null
                                 }
                             }
@@ -565,7 +570,7 @@ class DocumentViewModel(application: Application) : AndroidViewModel(application
                         if (extractedTexts.isNotEmpty()) {
                             finalOcrText = extractedTexts.joinToString("\n\n")
                         }
-                    } catch (e: Exception) {
+                    } catch (e: Throwable) {
                         e.printStackTrace()
                     }
                 }
@@ -762,7 +767,7 @@ class DocumentViewModel(application: Application) : AndroidViewModel(application
                         .getString("text")
                     extractedText.trim()
                 }
-            } catch (e: Exception) {
+            } catch (e: Throwable) {
                 e.printStackTrace()
                 null
             }
@@ -779,7 +784,7 @@ class DocumentViewModel(application: Application) : AndroidViewModel(application
                 val recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
                 val visionText = Tasks.await(recognizer.process(inputImage))
                 text = visionText?.text
-            } catch (e: Exception) {
+            } catch (e: Throwable) {
                 e.printStackTrace()
             }
         }
@@ -812,7 +817,7 @@ class DocumentViewModel(application: Application) : AndroidViewModel(application
                 
                 val pfd = try {
                     contentResolver.openFileDescriptor(pdfUri, "r")
-                } catch (e: Exception) {
+                } catch (e: Throwable) {
                     null
                 }
                 
@@ -823,7 +828,7 @@ class DocumentViewModel(application: Application) : AndroidViewModel(application
                 
                 val renderer = try {
                     PdfRenderer(pfd)
-                } catch (e: Exception) {
+                } catch (e: Throwable) {
                     pfd.close()
                     null
                 }
@@ -857,7 +862,11 @@ class DocumentViewModel(application: Application) : AndroidViewModel(application
                     
                     val page = renderer.openPage(i)
                     // Render page into bitmap. Scale up 1.5x for OCR quality
-                    val width = (page.width * 1.5).toInt()
+                    var scale = 1.5
+                    if (page.width * scale > 1600) {
+                        scale = 1600.0 / page.width
+                    }
+                    val width = (page.width * scale).toInt().coerceAtLeast(1)
                     val height = (page.height * 1.5).toInt()
                     val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
                     
@@ -882,7 +891,7 @@ class DocumentViewModel(application: Application) : AndroidViewModel(application
                             if (visionText != null && visionText.text.isNotBlank()) {
                                 pageText = visionText.text
                             }
-                        } catch (e: Exception) {
+                        } catch (e: Throwable) {
                             e.printStackTrace()
                         }
                     }
@@ -972,7 +981,7 @@ class DocumentViewModel(application: Application) : AndroidViewModel(application
                 repository.insertDocument(docEntity)
                 
                 kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) { onSuccess(finalName) }
-            } catch (e: Exception) {
+            } catch (e: Throwable) {
                 e.printStackTrace()
                 kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) { onFailure(e.localizedMessage ?: "Conversion failed.") }
             }
@@ -988,7 +997,7 @@ class DocumentViewModel(application: Application) : AndroidViewModel(application
                 withContext(Dispatchers.Main) {
                     onComplete()
                 }
-            } catch (e: Exception) {
+            } catch (e: Throwable) {
                 e.printStackTrace()
             }
         }
@@ -1020,7 +1029,7 @@ class DocumentViewModel(application: Application) : AndroidViewModel(application
                     val updated = document.copy(pdfPath = pdfFile.absolutePath, sizeBytes = pdfFile.length())
                     repository.updateDocument(updated)
                 }
-            } catch (e: Exception) {
+            } catch (e: Throwable) {
                 e.printStackTrace()
             }
             withContext(Dispatchers.Main) {

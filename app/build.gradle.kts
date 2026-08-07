@@ -17,19 +17,19 @@ android {
     applicationId = "com.scanverse.atifsam280"
     minSdk = 26
     targetSdk = 36
-    versionCode = 10
-    versionName = "10.0"
+    versionCode = 12
+    versionName = "12.0"
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
   }
 
   signingConfigs {
     create("release") {
-      val keystorePath = System.getenv("KEYSTORE_PATH") ?: "${rootDir}/my-upload-key.jks"
-      storeFile = file(keystorePath)
-      storePassword = System.getenv("STORE_PASSWORD")
+      storeFile = file("${rootDir}/my-upload-key.jks")
+      
+      storePassword = "password123"
       keyAlias = "upload"
-      keyPassword = System.getenv("KEY_PASSWORD")
+      keyPassword = "password123"
     }
     create("debugConfig") {
       storeFile = file("${rootDir}/debug.keystore")
@@ -120,6 +120,8 @@ dependencies {
   implementation(libs.okhttp)
   implementation(libs.apache.poi)
   implementation(libs.apache.poi.ooxml)
+  implementation("javax.xml.stream:stax-api:1.0-2")
+  implementation("com.fasterxml:aalto-xml:1.3.2")
   implementation(libs.play.services.ads)
   // implementation(libs.pdfbox.android)
   // implementation(libs.play.services.location)
