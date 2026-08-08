@@ -36,6 +36,7 @@ import com.google.android.gms.ads.MobileAds
 class MainActivity : FragmentActivity() {
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
+    com.example.ui.ai.AIPdfPasswordProtection.init(this)
     
 
     MobileAds.initialize(this) {}

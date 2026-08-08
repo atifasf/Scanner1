@@ -124,7 +124,7 @@ dependencies {
   implementation("javax.xml.stream:stax-api:1.0-2")
   implementation("com.fasterxml:aalto-xml:1.3.2")
   implementation(libs.play.services.ads)
-  // implementation(libs.pdfbox.android)
+  implementation("com.tom-roush:pdfbox-android:2.0.27.0")
   // implementation(libs.play.services.location)
   // implementation(libs.retrofit)
   testImplementation(libs.androidx.compose.ui.test.junit4)

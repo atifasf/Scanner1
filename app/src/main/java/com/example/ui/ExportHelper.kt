@@ -24,9 +24,14 @@ object ExportHelper {
             val intent = Intent(Intent.ACTION_SEND).apply {
                 type = mimeType
                 putExtra(Intent.EXTRA_STREAM, uri)
+                clipData = android.content.ClipData.newRawUri("Document", uri)
                 addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
             }
-            context.startActivity(Intent.createChooser(intent, "Save or Share File"))
+            val chooser = Intent.createChooser(intent, "Save or Share File").apply {
+                clipData = android.content.ClipData.newRawUri("Document", uri)
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+            context.startActivity(chooser)
         } catch (e: Throwable) {
             e.printStackTrace()
             Toast.makeText(context, "Error sharing file", Toast.LENGTH_SHORT).show()
