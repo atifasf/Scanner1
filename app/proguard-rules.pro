@@ -33,4 +33,5 @@
 -keep class com.fasterxml.aalto.stax.** { *; }
 -dontwarn org.openxmlformats.**
 -dontwarn schemaorg_apache_xmlbeans.**
--dontwarn com.fasterxml.aalto.**
+-keep class com.tom_roush.pdfbox.** { *; }
+-dontwarn com.tom_roush.pdfbox.**
