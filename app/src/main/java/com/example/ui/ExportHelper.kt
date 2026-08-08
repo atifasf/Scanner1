@@ -33,10 +33,18 @@ object ExportHelper {
         }
     }
 
+    private fun getCleanFile(context: Context, fileName: String, extension: String): File {
+        val cleanName = fileName.trim().replace(Regex("[^\\p{L}\\p{N}.\\-_ ]"), "_").trim()
+        val finalName = if (cleanName.lowercase().endsWith(".${extension.lowercase()}")) cleanName else "$cleanName.$extension"
+        val exportDir = File(context.cacheDir, "exported_docs")
+        if (!exportDir.exists()) exportDir.mkdirs()
+        return File(exportDir, finalName)
+    }
+
     fun exportToTxt(context: Context, text: String, fileName: String) {
         try {
             val cleanText = text.replace(Regex("<[^>]*>"), "")
-            val file = File(context.cacheDir, "$fileName.txt")
+            val file = getCleanFile(context, fileName, "txt")
             FileWriter(file).use { it.write(cleanText) }
             shareFile(context, file, "text/plain")
         } catch (e: Throwable) {
@@ -202,7 +210,7 @@ object ExportHelper {
             val doc = XWPFDocument()
             appendContentToDoc(doc, text)
             
-            val file = File(context.cacheDir, "$fileName.docx")
+            val file = getCleanFile(context, fileName, "docx")
             FileOutputStream(file).use { doc.write(it) }
             doc.close()
             shareFile(context, file, "application/vnd.openxmlformats-officedocument.wordprocessingml.document")
@@ -226,7 +234,7 @@ object ExportHelper {
                     cell.setCellValue(cellValue.trim())
                 }
             }
-            val file = File(context.cacheDir, "$fileName.xlsx")
+            val file = getCleanFile(context, fileName, "xlsx")
             FileOutputStream(file).use { workbook.write(it) }
             workbook.close()
             shareFile(context, file, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")

@@ -17,8 +17,8 @@ android {
     applicationId = "com.scanverse.atifsam280"
     minSdk = 26
     targetSdk = 36
-    versionCode = 12
-    versionName = "12.0"
+    versionCode = 13
+    versionName = "13.0"
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
   }
@@ -120,6 +120,7 @@ dependencies {
   implementation(libs.okhttp)
   implementation(libs.apache.poi)
   implementation(libs.apache.poi.ooxml)
+  implementation("org.jsoup:jsoup:1.17.2")
   implementation("javax.xml.stream:stax-api:1.0-2")
   implementation("com.fasterxml:aalto-xml:1.3.2")
   implementation(libs.play.services.ads)

@@ -144,23 +144,7 @@ fun DocumentDetailScreen(
                             val originalFile = it.pdfPath?.let { path -> File(path) } 
                                 ?: it.imagePaths.split(",").firstOrNull()?.let { path -> File(path) }
                             if (originalFile != null && originalFile.exists()) {
-                                val extension = originalFile.extension
-                                val safeName = it.name.replace(Regex("[^a-zA-Z0-9.-]"), "_") + "." + extension
-                                val shareDir = File(context.cacheDir, "share_cache")
-                                if (!shareDir.exists()) shareDir.mkdirs()
-                                val shareFile = File(shareDir, safeName)
-                                originalFile.copyTo(shareFile, overwrite = true)
-                                
-                                val uri = FileProvider.getUriForFile(context, "${context.packageName}.provider", shareFile)
-                                val shareIntent = Intent(Intent.ACTION_SEND).apply {
-                                    type = if (it.pdfPath != null) {
-                                        if (it.pdfPath.endsWith(".docx")) "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-                                        else "application/pdf"
-                                    } else "image/jpeg"
-                                    putExtra(Intent.EXTRA_STREAM, uri)
-                                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                                }
-                                context.startActivity(Intent.createChooser(shareIntent, "Share Document"))
+                                com.example.ui.ShareHelper.shareDocument(context, originalFile, it.name)
                             }
                         }
                     }) {

@@ -161,16 +161,7 @@ fun PdfViewerScreen(
                             val file = doc.pdfPath?.let { path -> File(path) }
                                 ?: doc.imagePaths.split(",").firstOrNull { it.isNotBlank() }?.let { path -> File(path) }
                             if (file != null && file.exists()) {
-                                val uri = FileProvider.getUriForFile(context, "${context.packageName}.provider", file)
-                                val shareIntent = Intent(Intent.ACTION_SEND).apply {
-                                    type = if (doc.pdfPath != null) {
-                                        if (doc.pdfPath.endsWith(".docx")) "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-                                        else "application/pdf"
-                                    } else "image/jpeg"
-                                    putExtra(Intent.EXTRA_STREAM, uri)
-                                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                                }
-                                context.startActivity(Intent.createChooser(shareIntent, "Share Document"))
+                                com.example.ui.ShareHelper.shareDocument(context, file, doc.name)
                             }
                         }
                     }) {
@@ -208,9 +199,117 @@ fun PdfViewerScreen(
                 CircularProgressIndicator()
             }
         } else {
-            val pagePaths = remember(currentDoc.imagePaths) {
-                currentDoc.imagePaths.split(",").filter { it.isNotBlank() }
+            val pdfFile = remember(currentDoc.pdfPath) {
+                currentDoc.pdfPath?.let { File(it) }
             }
+            val isPdfEncrypted = remember(pdfFile) {
+                pdfFile != null && pdfFile.exists() && com.example.ui.ai.AIPdfPasswordProtection.isEncrypted(pdfFile)
+            }
+            var isUnlocked by remember { mutableStateOf(!isPdfEncrypted) }
+            var passwordInput by remember { mutableStateOf("") }
+            var passwordVisible by remember { mutableStateOf(false) }
+            var passwordError by remember { mutableStateOf<String?>(null) }
+
+            if (isPdfEncrypted && !isUnlocked) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(padding)
+                        .background(MaterialTheme.colorScheme.background),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth(0.9f)
+                            .padding(16.dp),
+                        shape = RoundedCornerShape(16.dp),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(24.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(16.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Lock,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(56.dp)
+                            )
+                            Text(
+                                text = "Protected Document",
+                                style = MaterialTheme.typography.titleLarge,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                text = "This document is password protected. Enter the password to unlock '${currentDoc.name}'.",
+                                style = MaterialTheme.typography.bodyMedium,
+                                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+
+                            OutlinedTextField(
+                                value = passwordInput,
+                                onValueChange = {
+                                    passwordInput = it
+                                    passwordError = null
+                                },
+                                label = { Text("Password") },
+                                placeholder = { Text("Enter password") },
+                                leadingIcon = { Icon(Icons.Default.Key, contentDescription = null) },
+                                trailingIcon = {
+                                    val icon = if (passwordVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff
+                                    IconButton(onClick = { passwordVisible = !passwordVisible }) {
+                                        Icon(icon, contentDescription = if (passwordVisible) "Hide password" else "Show password")
+                                    }
+                                },
+                                visualTransformation = if (passwordVisible) androidx.compose.ui.text.input.VisualTransformation.None else androidx.compose.ui.text.input.PasswordVisualTransformation(),
+                                singleLine = true,
+                                isError = passwordError != null,
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(12.dp)
+                            )
+
+                            if (passwordError != null) {
+                                Text(
+                                    text = passwordError!!,
+                                    color = MaterialTheme.colorScheme.error,
+                                    style = MaterialTheme.typography.bodySmall
+                                )
+                            }
+
+                            Button(
+                                onClick = {
+                                    if (passwordInput.isBlank()) {
+                                        passwordError = "Password cannot be empty"
+                                        return@Button
+                                    }
+                                    if (pdfFile != null) {
+                                        val tempDecrypted = File(context.cacheDir, "unlocked_${currentDoc.id}.pdf")
+                                        val success = com.example.ui.ai.AIPdfPasswordProtection.decryptPdf(pdfFile, tempDecrypted, passwordInput)
+                                        if (success) {
+                                            isUnlocked = true
+                                            passwordError = null
+                                        } else {
+                                            passwordError = "Incorrect password. Please try again."
+                                        }
+                                    }
+                                },
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(12.dp)
+                            ) {
+                                Icon(Icons.Default.LockOpen, contentDescription = null, modifier = Modifier.size(18.dp))
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text("Unlock Document", fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+                }
+            } else {
+                val pagePaths = remember(currentDoc.imagePaths) {
+                    currentDoc.imagePaths.split(",").filter { it.isNotBlank() }
+                }
 
             if (pagePaths.isEmpty()) {
                 Box(
@@ -391,4 +490,5 @@ fun PdfViewerScreen(
             }
         )
     }
+}
 }

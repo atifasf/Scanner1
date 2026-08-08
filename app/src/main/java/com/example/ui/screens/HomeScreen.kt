@@ -79,6 +79,7 @@ fun HomeScreen(
     var documentToMove by remember { mutableStateOf<DocumentEntity?>(null) }
     var folderToRename by remember { mutableStateOf<com.example.data.FolderEntity?>(null) }
     var documentToRename by remember { mutableStateOf<DocumentEntity?>(null) }
+    var documentToProtect by remember { mutableStateOf<DocumentEntity?>(null) }
     var currentTab by remember { mutableStateOf("Home") }
 
     var isIdCardScan by remember { mutableStateOf(false) }
@@ -137,13 +138,7 @@ fun HomeScreen(
                         successDialogDoc = null
                         val pdfFile = java.io.File(doc.pdfPath ?: "")
                         if (pdfFile.exists()) {
-                            val uri = androidx.core.content.FileProvider.getUriForFile(context, "${context.packageName}.provider", pdfFile)
-                            val shareIntent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
-                                type = "application/pdf"
-                                putExtra(android.content.Intent.EXTRA_STREAM, uri)
-                                addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                            }
-                            context.startActivity(android.content.Intent.createChooser(shareIntent, "Share PDF"))
+                            com.example.ui.ShareHelper.shareDocument(context, pdfFile, doc.name)
                         }
                     }) {
                         Icon(Icons.Default.Share, contentDescription = null, modifier = Modifier.size(18.dp))
@@ -231,6 +226,183 @@ fun HomeScreen(
             },
             dismissButton = {
                 Button(onClick = { documentToRename = null }, colors = ButtonDefaults.filledTonalButtonColors(), elevation = ButtonDefaults.buttonElevation(defaultElevation = 4.dp, pressedElevation = 2.dp)) { Text("Cancel") }
+            }
+        )
+    }
+
+    if (documentToProtect != null) {
+        val doc = documentToProtect!!
+        val pdfFile = doc.pdfPath?.let { File(it) }
+        val isCurrentlyEncrypted = pdfFile != null && pdfFile.exists() && com.example.ui.ai.AIPdfPasswordProtection.isEncrypted(pdfFile)
+
+        var passwordInput by remember { mutableStateOf("") }
+        var passwordVisible by remember { mutableStateOf(false) }
+        var errorMessage by remember { mutableStateOf<String?>(null) }
+
+        AlertDialog(
+            onDismissRequest = { documentToProtect = null },
+            title = {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Icon(
+                        imageVector = if (isCurrentlyEncrypted) Icons.Default.LockOpen else Icons.Default.Lock,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                    Text(
+                        text = if (isCurrentlyEncrypted) "Password Protection Options" else "Protect PDF with Password",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text(
+                        text = if (isCurrentlyEncrypted)
+                            "This document '${doc.name}' is currently password protected. Enter the current password to remove protection or set a new password."
+                        else
+                            "Enter a password to encrypt and secure '${doc.name}'. Anyone viewing this PDF will be required to enter this password.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+
+                    OutlinedTextField(
+                        value = passwordInput,
+                        onValueChange = {
+                            passwordInput = it
+                            errorMessage = null
+                        },
+                        label = { Text("Password") },
+                        placeholder = { Text("Enter password") },
+                        leadingIcon = { Icon(Icons.Default.Key, contentDescription = null) },
+                        trailingIcon = {
+                            val icon = if (passwordVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff
+                            IconButton(onClick = { passwordVisible = !passwordVisible }) {
+                                Icon(icon, contentDescription = if (passwordVisible) "Hide password" else "Show password")
+                            }
+                        },
+                        visualTransformation = if (passwordVisible) androidx.compose.ui.text.input.VisualTransformation.None else androidx.compose.ui.text.input.PasswordVisualTransformation(),
+                        singleLine = true,
+                        isError = errorMessage != null,
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp)
+                    )
+
+                    if (errorMessage != null) {
+                        Text(
+                            text = errorMessage!!,
+                            color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    if (isCurrentlyEncrypted) {
+                        Button(
+                            onClick = {
+                                if (passwordInput.isBlank()) {
+                                    errorMessage = "Please enter current password"
+                                    return@Button
+                                }
+                                if (pdfFile != null && pdfFile.exists()) {
+                                    val tempDecrypted = File(context.cacheDir, "decrypted_${doc.id}.pdf")
+                                    val decrypted = com.example.ui.ai.AIPdfPasswordProtection.decryptPdf(pdfFile, tempDecrypted, passwordInput)
+                                    if (decrypted) {
+                                        pdfFile.delete()
+                                        tempDecrypted.renameTo(pdfFile)
+                                        Toast.makeText(context, "Password protection removed", Toast.LENGTH_SHORT).show()
+                                        documentToProtect = null
+                                    } else {
+                                        errorMessage = "Incorrect password"
+                                    }
+                                }
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                        ) {
+                            Text("Remove Lock")
+                        }
+                    }
+
+                    Button(
+                        onClick = {
+                            if (passwordInput.isBlank()) {
+                                errorMessage = "Password cannot be empty"
+                                return@Button
+                            }
+
+                            coroutineScope.launch(Dispatchers.IO) {
+                                var targetPdfFile = doc.pdfPath?.let { File(it) }
+                                if (targetPdfFile == null || !targetPdfFile.exists()) {
+                                    val pages = doc.imagePaths.split(",").filter { it.isNotBlank() }
+                                    if (pages.isNotEmpty()) {
+                                        val newPdf = File(context.filesDir, "pdf_${doc.id}.pdf")
+                                        val pdfDoc = android.graphics.pdf.PdfDocument()
+                                        pages.forEachIndexed { idx, imgPath ->
+                                            val bmp = BitmapFactory.decodeFile(imgPath)
+                                            if (bmp != null) {
+                                                val pageInfo = android.graphics.pdf.PdfDocument.PageInfo.Builder(bmp.width, bmp.height, idx + 1).create()
+                                                val page = pdfDoc.startPage(pageInfo)
+                                                page.canvas.drawBitmap(bmp, 0f, 0f, null)
+                                                pdfDoc.finishPage(page)
+                                                bmp.recycle()
+                                            }
+                                        }
+                                        pdfDoc.writeTo(newPdf.outputStream())
+                                        pdfDoc.close()
+                                        targetPdfFile = newPdf
+                                        viewModel.updateDocument(doc.copy(pdfPath = newPdf.absolutePath))
+                                    }
+                                }
+
+                                if (targetPdfFile != null && targetPdfFile.exists()) {
+                                    val unencryptedFile = if (isCurrentlyEncrypted) {
+                                        val temp = File(context.cacheDir, "temp_dec_${doc.id}.pdf")
+                                        val success = com.example.ui.ai.AIPdfPasswordProtection.decryptPdf(targetPdfFile, temp, passwordInput)
+                                        if (!success) {
+                                            withContext(Dispatchers.Main) {
+                                                errorMessage = "Incorrect current password"
+                                            }
+                                            return@launch
+                                        }
+                                        temp
+                                    } else {
+                                        targetPdfFile
+                                    }
+
+                                    val tempEncrypted = File(context.cacheDir, "enc_${doc.id}.pdf")
+                                    val encSuccess = com.example.ui.ai.AIPdfPasswordProtection.encryptPdf(unencryptedFile, tempEncrypted, passwordInput)
+                                    if (encSuccess) {
+                                        targetPdfFile.delete()
+                                        tempEncrypted.renameTo(targetPdfFile)
+                                        if (unencryptedFile != targetPdfFile) unencryptedFile.delete()
+
+                                        withContext(Dispatchers.Main) {
+                                            Toast.makeText(context, "Password protection applied", Toast.LENGTH_SHORT).show()
+                                            documentToProtect = null
+                                        }
+                                    } else {
+                                        withContext(Dispatchers.Main) {
+                                            errorMessage = "Failed to encrypt PDF"
+                                        }
+                                    }
+                                } else {
+                                    withContext(Dispatchers.Main) {
+                                        errorMessage = "No PDF file found to protect"
+                                    }
+                                }
+                            }
+                        }
+                    ) {
+                        Text(if (isCurrentlyEncrypted) "Update Password" else "Protect PDF")
+                    }
+                }
+            },
+            dismissButton = {
+                Button(onClick = { documentToProtect = null }, colors = ButtonDefaults.filledTonalButtonColors()) {
+                    Text("Cancel")
+                }
             }
         )
     }
@@ -331,6 +503,9 @@ fun HomeScreen(
         val ocrProgressState by viewModel.ocrProgress.collectAsState()
         var selectedFormat by remember { mutableStateOf(com.example.ui.DocumentViewModel.OutputFormat.PDF) }
         var isSearchablePdf by remember { mutableStateOf(false) }
+        var showPasswordInput by remember { mutableStateOf(false) }
+        var pdfPassword by remember { mutableStateOf("") }
+        var passwordVisible by remember { mutableStateOf(false) }
         
         // Scan Enhancement Filters
         var textDarkness by remember { mutableFloatStateOf(0f) }
@@ -848,6 +1023,63 @@ fun HomeScreen(
                             }
                         }
                         
+                        if (selectedFormat == com.example.ui.DocumentViewModel.OutputFormat.PDF) {
+                            Card(
+                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                                shape = RoundedCornerShape(12.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                            Icon(
+                                                imageVector = Icons.Default.Lock,
+                                                contentDescription = null,
+                                                tint = MaterialTheme.colorScheme.primary,
+                                                modifier = Modifier.size(18.dp)
+                                            )
+                                            Text(
+                                                text = "Password Protect PDF",
+                                                style = MaterialTheme.typography.titleSmall,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                        }
+                                        Switch(
+                                            checked = showPasswordInput,
+                                            onCheckedChange = {
+                                                showPasswordInput = it
+                                                if (!it) pdfPassword = ""
+                                            }
+                                        )
+                                    }
+
+                                    androidx.compose.animation.AnimatedVisibility(visible = showPasswordInput) {
+                                        OutlinedTextField(
+                                            value = pdfPassword,
+                                            onValueChange = { pdfPassword = it },
+                                            label = { Text("PDF Password") },
+                                            placeholder = { Text("Set password to lock PDF") },
+                                            leadingIcon = { Icon(Icons.Default.Key, contentDescription = null) },
+                                            trailingIcon = {
+                                                val icon = if (passwordVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff
+                                                IconButton(onClick = { passwordVisible = !passwordVisible }) {
+                                                    Icon(icon, contentDescription = if (passwordVisible) "Hide password" else "Show password")
+                                                }
+                                            },
+                                            visualTransformation = if (passwordVisible) androidx.compose.ui.text.input.VisualTransformation.None else androidx.compose.ui.text.input.PasswordVisualTransformation(),
+                                            singleLine = true,
+                                            modifier = Modifier.fillMaxWidth(),
+                                            shape = RoundedCornerShape(10.dp)
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
                         Card(
                             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.08f)),
                             shape = RoundedCornerShape(8.dp),
@@ -890,7 +1122,8 @@ fun HomeScreen(
                                     textDarkness = textDarkness,
                                     backgroundClarity = backgroundClarity,
                                     sharpness = sharpness,
-                                    enableAutoDeskew = enableAutoDeskew
+                                    enableAutoDeskew = enableAutoDeskew,
+                                    password = if (showPasswordInput && pdfPassword.isNotBlank()) pdfPassword else null
                                 ) {
                                     showFormatSelectionScreen = false
                                     scannedImageUris = null
@@ -1638,21 +1871,13 @@ fun HomeScreen(
                                 onDeleteClick = { viewModel.moveToTrash(doc.id) },
                                 onMoveClick = { documentToMove = doc },
                                 onRenameClick = { documentToRename = doc },
+                                onProtectClick = { documentToProtect = doc },
                                 onAddSignatureClick = { docForSignature = doc },
-                                onShareClick = {
+                                 onShareClick = {
                                     val file = doc.pdfPath?.let { java.io.File(it) } 
                                         ?: doc.imagePaths.split(",").firstOrNull()?.let { java.io.File(it) }
                                     if (file != null && file.exists()) {
-                                        val uri = androidx.core.content.FileProvider.getUriForFile(context, "${context.packageName}.provider", file)
-                                        val shareIntent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
-                                            type = if (doc.pdfPath != null) {
-                                                if (doc.pdfPath.endsWith(".docx")) "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-                                                else "application/pdf"
-                                            } else "image/jpeg"
-                                            putExtra(android.content.Intent.EXTRA_STREAM, uri)
-                                            addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                                        }
-                                        context.startActivity(android.content.Intent.createChooser(shareIntent, "Share Document"))
+                                        com.example.ui.ShareHelper.shareDocument(context, file, doc.name)
                                     }
                                 }
                             )
@@ -1934,7 +2159,8 @@ fun DocumentListItem(
     onMoveClick: () -> Unit,
     onRenameClick: () -> Unit,
     onAddSignatureClick: () -> Unit = {},
-    onShareClick: () -> Unit
+    onShareClick: () -> Unit,
+    onProtectClick: () -> Unit = {}
 ) {
     val firstImagePath = document.imagePaths.split(",").firstOrNull { it.isNotBlank() }
     var showMenu by remember { mutableStateOf(false) }
@@ -2033,6 +2259,14 @@ fun DocumentListItem(
                         onAddSignatureClick()
                     },
                     leadingIcon = { Icon(Icons.Default.Gesture, contentDescription = null, tint = MaterialTheme.colorScheme.primary) }
+                )
+                DropdownMenuItem(
+                    text = { Text("Add Password") },
+                    onClick = {
+                        showMenu = false
+                        onProtectClick()
+                    },
+                    leadingIcon = { Icon(Icons.Default.Lock, contentDescription = null, tint = MaterialTheme.colorScheme.primary) }
                 )
                 DropdownMenuItem(
                     text = { Text("Rename") },

@@ -200,6 +200,7 @@ class DocumentViewModel(application: Application) : AndroidViewModel(application
         backgroundClarity: Float = 0f,
         sharpness: Float = 0f,
         enableAutoDeskew: Boolean = false,
+        password: String? = null,
         onComplete: (com.example.data.DocumentEntity) -> Unit
     ) {
         viewModelScope.launch(Dispatchers.IO) {
@@ -433,6 +434,16 @@ class DocumentViewModel(application: Application) : AndroidViewModel(application
                         
                         pdfDocument.writeTo(pdfFile.outputStream())
                         pdfDocument.close()
+                        
+                        if (!password.isNullOrBlank()) {
+                            val encryptedFile = File(app.filesDir, "pdf_${id}_enc.pdf")
+                            val encSuccess = com.example.ui.ai.AIPdfPasswordProtection.encryptPdf(pdfFile, encryptedFile, password)
+                            if (encSuccess) {
+                                pdfFile.delete()
+                                encryptedFile.renameTo(pdfFile)
+                            }
+                        }
+                        
                         savedDocPath = pdfFile.absolutePath
                     } catch (e: Throwable) {
                         e.printStackTrace()
@@ -722,10 +733,21 @@ class DocumentViewModel(application: Application) : AndroidViewModel(application
                     else -> "English"
                 }
 
+                val basePrompt = """
+Extract all content from the input image accurately and format it as rich HTML.
+Rules:
+1. Replicate the original document layout, spacing, alignment, and formatting using HTML elements and inline CSS (e.g., <p style="text-align: right; font-size: 14pt; font-weight: bold;">).
+2. For tables, use <table>, <tr>, <td>, <th>. If cells are merged, correctly use colspan and rowspan attributes. Keep the exact column and row count as visualised.
+3. Preserve text alignments (left, center, right, justify) using text-align CSS.
+4. Preserve fonts (size, bold, italics, underline) using standard CSS or HTML tags (<b>, <i>, <u>).
+5. If there are distinct sections or blocks, use <div> with appropriate margins or alignments.
+6. Output ONLY the valid semantic HTML string without any markdown code block wrappers.
+""".trimIndent()
+
                 val prompt = if (languageCode == "en") {
-                    "Extract all content from the input image accurately. Formatting Rules:\n1. Preserve layout structure as closely as possible using HTML tags.\n2. Format regular text inside paragraph tags <p>...</p>.\n3. CRITICAL: Whenever you detect a table, grid, or column-based data, convert it into a well-structured HTML table using <table>, <thead>, <tbody>, <tr>, <th>, and <td> tags.\n4. Maintain row and column counts exactly as they appear in the source image.\n5. Do not lose any textual content inside table cells.\n6. Output ONLY the raw HTML string without any markdown code block wrappers."
+                    basePrompt
                 } else {
-                    "Extract all $langName content from the input image accurately. Formatting Rules:\n1. Preserve layout structure as closely as possible using HTML tags.\n2. Format regular text inside paragraph tags <p>...</p>.\n3. CRITICAL: Whenever you detect a table, grid, or column-based data, convert it into a well-structured HTML table using <table>, <thead>, <tbody>, <tr>, <th>, and <td> tags.\n4. Maintain row and column counts exactly as they appear in the source image.\n5. Do not lose any textual content inside table cells.\n6. Output ONLY the raw HTML string without any markdown code block wrappers."
+                    "Extract all $langName content. $basePrompt"
                 }
                 val requestJson = JSONObject()
                 val contentsArray = JSONArray()
